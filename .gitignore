@@ -1,0 +1,58 @@
+# =============================================================================
+# NCRTC Fleet Management Platform
+# =============================================================================
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Build
+frontend/dist/
+*.tsbuildinfo
+
+# Docker
+postgres_data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Reports
+backend/reports/generated/*
+!backend/reports/generated/.gitkeep
+
+# Logs
+*.log
+logs/
