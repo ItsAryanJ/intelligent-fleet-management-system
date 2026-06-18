@@ -105,8 +105,6 @@ npm run dev
 | Role | Email | Password |
 |------|-------|----------|
 | Admin | admin@ncrtc.in | password123 |
-| Control Operator | rajesh.kumar2@ncrtc.in | password123 |
-| Driver | amit.sharma12@ncrtc.in | password123 |
 
 ## 🗄️ Seed Data
 
