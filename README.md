@@ -1,4 +1,4 @@
-# NCRTC Intelligent Fleet Management Platform
+    # NCRTC Intelligent Fleet Management Platform
 
 > Enterprise-grade transport operations platform for NCRTC (National Capital Region Transport Corporation)
 
@@ -46,7 +46,7 @@ intelligent-fleet-management-system/
 │   ├── app/
 │   │   ├── core/          # Config, DB, security, middleware, WebSocket
 │   │   ├── features/      # 15 feature modules (auth, vehicles, GPS, etc.)
-│   │   ├── seed/          # Realistic NCR seed data generator
+│   │   ├── seed.py        # Realistic NCR seed data generator
 │   │   ├── models.py      # 20+ SQLAlchemy models with PostGIS
 │   │   └── main.py        # FastAPI app factory
 │   ├── requirements.txt
@@ -89,7 +89,7 @@ cd backend
 python -m venv venv
 source venv/bin/activate  # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
-python -m app.seed.run     # Seed database
+python -m app.seed         # Seed database
 uvicorn app.main:app --reload
 ```
 
@@ -105,6 +105,7 @@ npm run dev
 | Role | Email | Password |
 |------|-------|----------|
 | Admin | admin@ncrtc.in | password123 |
+| All other roles | `<first>.<last><N>@ncrtc.in` | ncrtc2024 |
 
 ## 🗄️ Seed Data
 

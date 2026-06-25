@@ -9,16 +9,18 @@ import uuid
 import math
 from datetime import datetime, timezone, timedelta, date, time
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import get_settings
 from app.core.security import hash_password
 from app.models import (
-    Base, Depot, Role, User, Vehicle, Route, Stop, Duty, Incident, Notice,
-    GPSPing, Notification, LeaveRequest, Report, AuditLog,
+    Base, Depot, Role, User, Vehicle, Route, Stop, RouteStop, Duty,
+    Incident, Notice, GPSPing, Notification, LeaveRequest, Report, AuditLog,
     VehicleType, VehicleStatus, IncidentType, IncidentSeverity, IncidentStatus,
-    DutyStatus, NotificationType, LeaveStatus, ReportType, ReportFormat,
+    DutyStatus, ShiftType, NotificationType, LeaveStatus, ReportType, ReportFormat,
+    NoticePriority, NoticeTargetType, StopType,
 )
 
 settings = get_settings()
@@ -67,20 +69,21 @@ STOP_COORDINATES = {
     "Meerut Central": (29.0000, 77.7200),
 }
 
+# Use only VALID enum values from models.py
 INCIDENT_TYPES_DATA = [
-    ("Brake system failure during service", IncidentType.MECHANICAL, IncidentSeverity.P1),
-    ("Signal passing at danger (SPAD)", IncidentType.SAFETY, IncidentSeverity.P1),
-    ("Pantograph damage during monsoon", IncidentType.MECHANICAL, IncidentSeverity.P2),
-    ("Passenger emergency alarm activated", IncidentType.SAFETY, IncidentSeverity.P2),
-    ("AC failure in coach B", IncidentType.MECHANICAL, IncidentSeverity.P3),
-    ("Door malfunction at Ghaziabad", IncidentType.MECHANICAL, IncidentSeverity.P2),
-    ("Track obstruction near Murad Nagar", IncidentType.SAFETY, IncidentSeverity.P1),
-    ("Power supply interruption", IncidentType.MECHANICAL, IncidentSeverity.P2),
+    ("Brake system failure during service", IncidentType.BREAKDOWN, IncidentSeverity.P1),
+    ("Signal passing at danger (SPAD)", IncidentType.SECURITY, IncidentSeverity.P1),
+    ("Pantograph damage during monsoon", IncidentType.BREAKDOWN, IncidentSeverity.P2),
+    ("Passenger emergency alarm activated", IncidentType.COMPLAINT, IncidentSeverity.P2),
+    ("AC failure in coach B", IncidentType.BREAKDOWN, IncidentSeverity.P3),
+    ("Door malfunction at Ghaziabad", IncidentType.BREAKDOWN, IncidentSeverity.P2),
+    ("Track obstruction near Murad Nagar", IncidentType.SECURITY, IncidentSeverity.P1),
+    ("Power supply interruption", IncidentType.BREAKDOWN, IncidentSeverity.P2),
     ("Unauthorized person on track", IncidentType.SECURITY, IncidentSeverity.P1),
     ("CCTV camera malfunction", IncidentType.SECURITY, IncidentSeverity.P3),
-    ("Medical emergency on board", IncidentType.SAFETY, IncidentSeverity.P2),
-    ("Graffiti vandalism on exterior", IncidentType.SECURITY, IncidentSeverity.P4),
-    ("Wheel flat detected", IncidentType.MECHANICAL, IncidentSeverity.P2),
+    ("Medical emergency on board", IncidentType.COMPLAINT, IncidentSeverity.P2),
+    ("Graffiti vandalism on exterior", IncidentType.OTHER, IncidentSeverity.P3),
+    ("Wheel flat detected", IncidentType.BREAKDOWN, IncidentSeverity.P2),
     ("Route deviation near Modi Nagar", IncidentType.ROUTE_DEVIATION, IncidentSeverity.P2),
     ("Geofence breach — unauthorized depot entry", IncidentType.SECURITY, IncidentSeverity.P2),
 ]
@@ -129,6 +132,13 @@ async def seed_database():
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     async with async_session() as db:
+        # ── Idempotency check ─────────────────────────────────────────
+        existing = await db.execute(select(Role).limit(1))
+        if existing.scalar_one_or_none():
+            print("⚠️  Database already seeded — skipping.")
+            await engine.dispose()
+            return
+
         print("🚄 NCRTC Demo Data Generator")
         print("=" * 60)
 
@@ -162,6 +172,22 @@ async def seed_database():
         users = []
         user_idx = 0
         password_hash = hash_password("ncrtc2024")
+
+        # Create deterministic admin account matching README
+        admin_hash = hash_password("password123")
+        admin_user = User(
+            first_name="System", last_name="Admin",
+            email="admin@ncrtc.in",
+            password_hash=admin_hash,
+            employee_id="NCRTC-0000",
+            phone="+91-9999999999",
+            role_id=role_map["ADMIN"].id,
+            depot_id=depots[0].id,
+            is_active=True,
+        )
+        db.add(admin_user)
+        users.append(admin_user)
+
         for role_name, count in ROLE_DISTRIBUTION.items():
             for i in range(count):
                 first = random.choice(FIRST_NAMES)
@@ -183,13 +209,14 @@ async def seed_database():
         await db.flush()
         drivers = [u for u in users if u.role_id == role_map["DRIVER"].id]
         conductors = [u for u in users if u.role_id == role_map["CONDUCTOR"].id]
-        print(f"   ✅ {len(users)} users created")
+        print(f"   ✅ {len(users)} users created (incl. admin@ncrtc.in)")
 
         # ── 4. Vehicles ──────────────────────────────────────────────
         print("🚆 Creating vehicles...")
         vehicles = []
         vehicle_types = list(VehicleType)
-        statuses = [VehicleStatus.ACTIVE] * 7 + [VehicleStatus.MAINTENANCE, VehicleStatus.IDLE, VehicleStatus.BREAKDOWN]
+        # Only use valid VehicleStatus enum members
+        statuses = [VehicleStatus.ACTIVE] * 7 + [VehicleStatus.MAINTENANCE, VehicleStatus.INACTIVE, VehicleStatus.BREAKDOWN]
         for i in range(50):
             depot = depots[i % len(depots)]
             v = Vehicle(
@@ -200,8 +227,12 @@ async def seed_database():
                 year=random.randint(2022, 2026),
                 status=random.choice(statuses),
                 depot_id=depot.id,
-                seating_capacity=random.choice([150, 200, 250, 300]),
-                standing_capacity=random.choice([300, 400, 500]),
+                capacity=random.choice([40, 45, 50, 55]),
+                color=random.choice(["White", "Blue", "Silver", "Red"]),
+                chassis_no=f"CHS-{100000 + i}",
+                engine_no=f"ENG-{200000 + i}",
+                insurance_expiry=date.today() + timedelta(days=random.randint(180, 900)),
+fitness_expiry=date.today() + timedelta(days=random.randint(90, 540)),
                 last_latitude=depot.latitude + random.uniform(-0.02, 0.02),
                 last_longitude=depot.longitude + random.uniform(-0.02, 0.02),
                 last_speed=random.uniform(0, 80),
@@ -214,36 +245,65 @@ async def seed_database():
         await db.flush()
         print(f"   ✅ {len(vehicles)} vehicles created")
 
-        # ── 5. Routes & Stops ────────────────────────────────────────
-        print("🛤️ Creating routes and stops...")
+        # ── 5. Stops (station catalog) ───────────────────────────────
+        print("🛤️ Creating stops...")
+        stop_map = {}
+        stop_idx = 0
+        for stop_name, (lat, lon) in STOP_COORDINATES.items():
+            stop = Stop(
+                name=stop_name,
+                code=f"STP-{str(stop_idx + 1).zfill(3)}",
+                latitude=lat,
+                longitude=lon,
+                stop_type=StopType.TERMINAL if stop_name in ("Sarai Kale Khan", "Meerut Central") else StopType.REGULAR,
+                is_active=True,
+            )
+            db.add(stop)
+            await db.flush()
+            stop_map[stop_name] = stop
+            stop_idx += 1
+        print(f"   ✅ {len(stop_map)} stops created")
+
+        # ── 6. Routes + RouteStops ───────────────────────────────────
+        print("🛤️ Creating routes...")
         routes = []
-        total_stops = 0
+        total_route_stops = 0
         for rd in ROUTE_DATA:
+            depot = random.choice(depots)
             r = Route(
                 name=rd["name"], code=rd["code"],
                 distance_km=round(random.uniform(10, 82), 1),
-                duration_minutes=random.randint(15, 120),
+                estimated_duration_mins=random.randint(15, 120),
+                depot_id=depot.id,
+                is_active=True,
+                is_circular=rd["code"].startswith("SHNT"),
+                frequency_mins=random.choice([10, 15, 20, 30]),
+                color=random.choice(["#3B82F6", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6"]),
             )
             db.add(r)
             await db.flush()
             routes.append(r)
 
+            # Create RouteStop associations
             for seq, stop_name in enumerate(rd["stops"]):
-                coords = STOP_COORDINATES.get(stop_name, (28.7 + random.uniform(-0.1, 0.1), 77.5 + random.uniform(-0.1, 0.1)))
-                s = Stop(
-                    route_id=r.id, name=stop_name, sequence=seq + 1,
-                    latitude=coords[0], longitude=coords[1],
-                    arrival_offset_minutes=seq * random.randint(3, 8),
-                )
-                db.add(s)
-                total_stops += 1
+                if stop_name in stop_map:
+                    rs = RouteStop(
+                        route_id=r.id,
+                        stop_id=stop_map[stop_name].id,
+                        sequence=seq + 1,
+                        distance_from_start_km=round(seq * random.uniform(2, 8), 1),
+                        scheduled_arrival_offset_mins=seq * random.randint(3, 8),
+                    )
+                    db.add(rs)
+                    total_route_stops += 1
         await db.flush()
-        print(f"   ✅ {len(routes)} routes, {total_stops} stops created")
+        print(f"   ✅ {len(routes)} routes, {total_route_stops} route-stops created")
 
-        # ── 6. Duties (7 days) ───────────────────────────────────────
+        # ── 7. Duties (7 days) ───────────────────────────────────────
         print("📅 Creating duties...")
         duties = []
         today = date.today()
+        shifts = list(ShiftType)
         for day_offset in range(-3, 4):
             duty_date = today + timedelta(days=day_offset)
             for shift_idx in range(random.randint(15, 25)):
@@ -251,30 +311,49 @@ async def seed_database():
                 conductor = random.choice(conductors)
                 vehicle = random.choice(vehicles)
                 route = random.choice(routes)
-                shift_start = time(hour=random.choice([5, 6, 7, 8, 9, 14, 15, 16, 21, 22]))
-                shift_end = time(hour=min(shift_start.hour + random.randint(4, 8), 23))
-                status = DutyStatus.COMPLETED if day_offset < 0 else (DutyStatus.IN_PROGRESS if day_offset == 0 else DutyStatus.SCHEDULED)
+                shift_choice = random.choice(shifts)
+
+                # Map shift to reasonable start/end times
+                shift_hours = {
+                    ShiftType.MORNING: (5, 13),
+                    ShiftType.AFTERNOON: (13, 20),
+                    ShiftType.EVENING: (16, 23),
+                    ShiftType.NIGHT: (21, 5),
+                    ShiftType.SPLIT: (6, 14),
+                }
+                start_h, end_h = shift_hours[shift_choice]
+
+                if day_offset < 0:
+                    status = DutyStatus.COMPLETED
+                elif day_offset == 0:
+                    status = DutyStatus.IN_PROGRESS
+                else:
+                    status = random.choice([DutyStatus.DRAFT, DutyStatus.PUBLISHED])
+
                 d = Duty(
-                    duty_no=f"DTY-{duty_date.strftime('%y%m%d')}-{str(shift_idx + 1).zfill(3)}",
                     date=duty_date,
-                    shift_start=shift_start, shift_end=shift_end,
-                    driver_id=driver.id, conductor_id=conductor.id,
-                    vehicle_id=vehicle.id, route_id=route.id,
+                    shift=shift_choice,
+                    start_time=time(hour=start_h),
+                    end_time=time(hour=end_h if end_h > start_h else 23),
+                    driver_id=driver.id,
+                    conductor_id=conductor.id,
+                    vehicle_id=vehicle.id,
+                    route_id=route.id,
                     status=status,
+                    created_by=str(admin_user.id),
                 )
                 db.add(d)
                 duties.append(d)
         await db.flush()
         print(f"   ✅ {len(duties)} duties created")
 
-        # ── 7. GPS Pings (100k) ─────────────────────────────────────
-        print("📡 Generating GPS pings (100,000)...")
+        # ── 8. GPS Pings (reduced to ~6000 for faster seeding) ───────
+        print("📡 Generating GPS pings...")
         ping_count = 0
         for v in vehicles:
             lat, lon = v.last_latitude or 28.7, v.last_longitude or 77.5
-            for hour_offset in range(200):
+            for hour_offset in range(120):
                 ts = datetime.now(timezone.utc) - timedelta(hours=hour_offset)
-                # Simulate movement along route
                 lat += random.uniform(-0.001, 0.001)
                 lon += random.uniform(-0.001, 0.001)
                 speed = random.uniform(0, 80) if random.random() > 0.2 else 0
@@ -285,13 +364,13 @@ async def seed_database():
                 )
                 db.add(ping)
                 ping_count += 1
-                if ping_count % 10000 == 0:
+                if ping_count % 5000 == 0:
                     await db.flush()
                     print(f"   📡 {ping_count:,} pings...")
         await db.flush()
         print(f"   ✅ {ping_count:,} GPS pings created")
 
-        # ── 8. Incidents ─────────────────────────────────────────────
+        # ── 9. Incidents ─────────────────────────────────────────────
         print("⚠️ Creating incidents...")
         incidents = []
         for i in range(50):
@@ -299,6 +378,7 @@ async def seed_database():
             vehicle = random.choice(vehicles)
             created = datetime.now(timezone.utc) - timedelta(days=random.randint(0, 30), hours=random.randint(0, 23))
             status = random.choice(list(IncidentStatus))
+            sla_hours = {"P1": 1, "P2": 4, "P3": 24}
             inc = Incident(
                 incident_no=f"INC-{created.strftime('%Y%m%d')}-{str(i + 1).zfill(3)}",
                 title=title, description=f"Detailed description of: {title}",
@@ -306,30 +386,37 @@ async def seed_database():
                 vehicle_id=vehicle.id, reported_by=random.choice(users).id,
                 latitude=28.7 + random.uniform(-0.3, 0.3),
                 longitude=77.5 + random.uniform(-0.3, 0.3),
+                sla_deadline=created + timedelta(hours=sla_hours.get(severity.value, 24)),
                 sla_breached=random.random() > 0.8,
+                created_by=str(admin_user.id),
             )
             db.add(inc)
             incidents.append(inc)
         await db.flush()
         print(f"   ✅ {len(incidents)} incidents created")
 
-        # ── 9. Notices ───────────────────────────────────────────────
+        # ── 10. Notices ──────────────────────────────────────────────
         print("📢 Creating notices...")
+        valid_priorities = list(NoticePriority)
         for i, title in enumerate(NOTICE_TITLES):
             notice = Notice(
                 title=title,
                 content=f"This is the detailed content for: {title}. All staff are requested to take note of this communication.",
-                notice_type=random.choice(["GENERAL", "SAFETY", "OPERATIONAL", "HR"]),
-                priority=random.choice(["LOW", "MEDIUM", "HIGH", "URGENT"]),
+                content_type="markdown",
+                summary=f"Summary: {title}",
+                priority=random.choice(valid_priorities),
+                target_type=NoticeTargetType.ALL,
                 published_by=random.choice(users).id,
                 published_at=datetime.now(timezone.utc) - timedelta(days=random.randint(0, 60)),
                 is_published=True,
+                language="en",
+                created_by=str(admin_user.id),
             )
             db.add(notice)
         await db.flush()
         print(f"   ✅ {len(NOTICE_TITLES)} notices created")
 
-        # ── 10. Leave Requests ───────────────────────────────────────
+        # ── 11. Leave Requests ───────────────────────────────────────
         print("🏖️ Creating leave requests...")
         for i in range(30):
             user = random.choice(drivers + conductors)
@@ -345,7 +432,7 @@ async def seed_database():
         await db.flush()
         print(f"   ✅ 30 leave requests created")
 
-        # ── 11. Reports ──────────────────────────────────────────────
+        # ── 12. Reports ──────────────────────────────────────────────
         print("📊 Creating report history...")
         for i in range(10):
             r = Report(
@@ -359,7 +446,7 @@ async def seed_database():
         await db.flush()
         print(f"   ✅ 10 reports created")
 
-        # ── 12. Notifications ────────────────────────────────────────
+        # ── 13. Notifications ────────────────────────────────────────
         print("🔔 Creating notifications...")
         notification_count = 0
         for user in users[:30]:
@@ -383,9 +470,9 @@ async def seed_database():
         print("=" * 60)
         print("🎉 SEED COMPLETE!")
         print(f"   🏢 {len(depots)} Depots")
-        print(f"   👤 {len(users)} Users (password: ncrtc2024)")
+        print(f"   👤 {len(users)} Users")
         print(f"   🚆 {len(vehicles)} Vehicles")
-        print(f"   🛤️  {len(routes)} Routes, {total_stops} Stops")
+        print(f"   🛤️  {len(routes)} Routes, {len(stop_map)} Stops, {total_route_stops} RouteStops")
         print(f"   📅 {len(duties)} Duties (7 days)")
         print(f"   📡 {ping_count:,} GPS Pings")
         print(f"   ⚠️  {len(incidents)} Incidents")
@@ -394,7 +481,7 @@ async def seed_database():
         print(f"   📊 10 Reports")
         print(f"   🔔 {notification_count} Notifications")
         print()
-        print("   🔑 Default login: rajesh.sharma0@ncrtc.in / ncrtc2024")
+        print("   🔑 Login: admin@ncrtc.in / password123")
         print("=" * 60)
 
     await engine.dispose()

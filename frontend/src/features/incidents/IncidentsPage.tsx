@@ -4,6 +4,7 @@ import { motion } from "framer-motion"
 import api from "@/lib/api"
 import type { Incident } from "@/types"
 import { IncidentFormModal } from "./IncidentFormModal"
+import { IncidentDetailDrawer } from "./IncidentDetailDrawer"
 import {
   AlertTriangle, Clock, User, Bus, MapPin,
   Filter, Search, ChevronRight, Shield, Timer, Plus,
@@ -29,6 +30,7 @@ export function IncidentsPage() {
   const [severityFilter, setSeverityFilter] = useState("ALL")
   const [page, setPage] = useState(1)
   const [formOpen, setFormOpen] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ["incidents", page, statusFilter, severityFilter],
@@ -56,6 +58,7 @@ export function IncidentsPage() {
     <div className="p-4 lg:p-6 space-y-5">
       {/* Modal */}
       <IncidentFormModal open={formOpen} onClose={() => setFormOpen(false)} />
+      <IncidentDetailDrawer incidentId={selectedId} onClose={() => setSelectedId(null)} />
 
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -138,6 +141,7 @@ export function IncidentsPage() {
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: idx * 0.03 }}
+                onClick={() => setSelectedId(incident.id)}
                 className="bg-white dark:bg-surface-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 hover:shadow-md transition-all cursor-pointer group"
               >
                 <div className="flex items-start gap-4">

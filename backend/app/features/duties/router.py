@@ -246,20 +246,20 @@ async def bulk_assign(
     """Bulk create duty assignments."""
     created = []
     for assignment in body.assignments:
+        driver = await db.get(User, assignment.driver_id) if assignment.driver_id else None
+        vehicle = await db.get(Vehicle, assignment.vehicle_id) if assignment.vehicle_id else None
+
+        if assignment.driver_id and not driver:
+            raise NotFoundException("Driver", assignment.driver_id)
+        if assignment.vehicle_id and not vehicle:
+            raise NotFoundException("Vehicle", assignment.vehicle_id)
 
         if current_user.role == RoleName.DEPOT_MANAGER.value:
-            driver = await db.get(User, assignment.driver_id)
-            vehicle = await db.get(Vehicle, assignment.vehicle_id)
+            if driver and driver.depot_id != current_user.depot_id:
+                raise ForbiddenException("Cannot assign duties to drivers from another depot")
+            if vehicle and vehicle.depot_id != current_user.depot_id:
+                raise ForbiddenException("Cannot assign vehicles from another depot")
 
-        if not driver: 
-            raise NotFoundException("Driver", assignment.driver_id) 
-        if not vehicle: 
-            raise NotFoundException("Vehicle", assignment.vehicle_id) 
-        if driver.depot_id != current_user.depot_id: 
-            raise ForbiddenException("Cannot assign duties to drivers from another depot") 
-        if vehicle.depot_id != current_user.depot_id: 
-            raise ForbiddenException("Cannot assign vehicles from another depot")
-    
         duty = Duty(
             date=assignment.date,
             shift=assignment.shift,

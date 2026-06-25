@@ -4,6 +4,7 @@ import { motion } from "framer-motion"
 import api from "@/lib/api"
 import type { Notice } from "@/types"
 import { NoticeFormModal } from "./NoticeFormModal"
+import { NoticeDetailDrawer } from "./NoticeDetailDrawer"
 import { useToast } from "@/components/shared/Toast"
 import { Megaphone, Clock, Eye, CheckCircle2, AlertCircle, ChevronRight, Plus, Send } from "lucide-react"
 
@@ -16,6 +17,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 export function NoticesPage() {
   const [formOpen, setFormOpen] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
@@ -43,6 +45,7 @@ export function NoticesPage() {
   return (
     <div className="p-4 lg:p-6 space-y-5">
       <NoticeFormModal open={formOpen} onClose={() => setFormOpen(false)} />
+      <NoticeDetailDrawer noticeId={selectedId} onClose={() => setSelectedId(null)} />
 
       <div className="flex items-center justify-between">
         <div>
@@ -73,6 +76,10 @@ export function NoticesPage() {
               className={`bg-white dark:bg-surface-900 rounded-xl border border-slate-200 dark:border-slate-800 p-5 hover:shadow-md transition-all cursor-pointer group ${
                 !notice.is_read ? "border-l-4 border-l-brand-500" : ""
               }`}
+              onClick={() => {
+                if (!notice.is_read) markReadMutation.mutate(notice.id)
+                setSelectedId(notice.id)
+              }}
             >
               <div className="flex items-start gap-4">
                 <div className="flex-1">

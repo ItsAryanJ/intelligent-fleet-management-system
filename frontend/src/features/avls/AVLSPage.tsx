@@ -14,6 +14,7 @@ export function AVLSPage() {
   const mapRef = useRef<HTMLDivElement>(null)
   const [mapInstance, setMapInstance] = useState<any>(null)
   const [markers, setMarkers] = useState<any[]>([])
+  const leafletRef = useRef<any>(null)
 
   const { data: positions = [], isLoading, refetch } = useQuery({
     queryKey: ["gps", "live"],
@@ -35,6 +36,7 @@ export function AVLSPage() {
     const loadMap = async () => {
       const L = await import("leaflet")
       await import("leaflet/dist/leaflet.css")
+      leafletRef.current = L
 
       const map = L.map(mapRef.current!, {
         center: [28.7041, 77.1025], // NCR center
@@ -63,10 +65,9 @@ export function AVLSPage() {
 
   // Update markers when positions change
   useEffect(() => {
-    if (!mapInstance) return
+    if (!mapInstance || !leafletRef.current) return
 
-    const L = (window as any).L
-    if (!L) return
+    const L = leafletRef.current
 
     // Clear old markers
     markers.forEach((m: any) => m.remove())

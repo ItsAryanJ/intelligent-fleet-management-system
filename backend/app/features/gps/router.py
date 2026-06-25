@@ -205,8 +205,27 @@ async def get_trip_analytics(
 
 @router.websocket("/stream")
 async def websocket_gps_stream(websocket: WebSocket):
-    """WebSocket endpoint for real-time GPS updates."""
-    await gps_manager.connect(websocket)
+    """WebSocket endpoint for real-time GPS updates. Requires ?token=<JWT>."""
+    # Authenticate via query param
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4001, reason="Missing authentication token")
+        return
+
+    try:
+        from app.core.security import verify_access_token
+        payload = verify_access_token(token)
+    except (ValueError, Exception):
+        await websocket.close(code=4001, reason="Invalid or expired token")
+        return
+
+    # Attach user metadata for potential depot-scoped broadcasting
+    metadata = {
+        "user_id": payload.get("sub"),
+        "role": payload.get("role"),
+        "depot_id": payload.get("depot_id"),
+    }
+    await gps_manager.connect(websocket, metadata=metadata)
     try:
         while True:
             # Keep connection alive, receive any client messages

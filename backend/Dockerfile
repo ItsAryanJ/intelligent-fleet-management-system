@@ -23,4 +23,4 @@ RUN mkdir -p uploads/incidents uploads/notices uploads/profiles uploads/reports
 EXPOSE 8000
 
 # Start with migration + seed + server
-CMD ["sh", "-c", "alembic upgrade head 2>/dev/null; python -c 'from app.seed import seed_database; import asyncio; asyncio.run(seed_database())' 2>/dev/null; uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "set -e; python -c 'from app.seed import seed_database; import asyncio; asyncio.run(seed_database())' || echo 'WARN: seed skipped (may already exist)'; exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]

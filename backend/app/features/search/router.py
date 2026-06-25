@@ -132,7 +132,7 @@ async def global_search(
     if current_user.role == RoleName.DEPOT_MANAGER.value:
         incident_stmt = incident_stmt.where(
             Incident.reported_by_user.has(
-                Vehicle.depot_id == current_user.depot_id
+                User.depot_id == current_user.depot_id
             )
         )
 

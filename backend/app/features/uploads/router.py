@@ -233,7 +233,7 @@ async def delete_file(
     return {"message": "File deleted"}
 
 
-@router.get("")
+@router.get("/list")
 async def list_files(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[CurrentUser, Depends(get_current_user)],

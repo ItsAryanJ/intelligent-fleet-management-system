@@ -2,7 +2,9 @@
 Middleware — CORS, audit logging, request ID, error handling.
 """
 
+import logging
 import time
+import traceback
 import uuid
 from typing import Callable
 
@@ -81,6 +83,14 @@ def setup_exception_handlers(app: FastAPI) -> None:
     async def generic_exception_handler(
         request: Request, exc: Exception
     ) -> JSONResponse:
+        logger = logging.getLogger("ncrtc.error")
+        logger.error(
+            "Unhandled exception on %s %s: %s\n%s",
+            request.method,
+            request.url.path,
+            str(exc),
+            traceback.format_exc(),
+        )
         return JSONResponse(
             status_code=500,
             content={
