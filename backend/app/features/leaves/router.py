@@ -139,19 +139,6 @@ async def approve_leave(
                 leave_id
             )
 
-    if current_user.role == RoleName.DEPOT_MANAGER.value:
-
-        user = await db.get(User, leave.user_id)
-
-        if (
-            user
-            and user.depot_id != current_user.depot_id
-        ):
-            raise NotFoundException(
-                "LeaveRequest",
-                leave_id
-            )
-
     leave.status = LeaveStatus.APPROVED
     leave.approved_by = current_user.id
     leave.approved_at = datetime.now(timezone.utc)
@@ -194,19 +181,6 @@ async def reject_leave(
     
     if current_user.role == RoleName.DEPOT_MANAGER.value:
         user = await db.get(User, leave.user_id)
-        if (
-            user
-            and user.depot_id != current_user.depot_id
-        ):
-            raise NotFoundException(
-                "LeaveRequest",
-                leave_id
-            )
-
-    if current_user.role == RoleName.DEPOT_MANAGER.value:
-
-        user = await db.get(User, leave.user_id)
-
         if (
             user
             and user.depot_id != current_user.depot_id

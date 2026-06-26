@@ -200,7 +200,7 @@ async def geofence_status(
     vehicles = vehicles_result.scalars().all()
 
     depot_status = []
-    for depot in depots:
+    for depot in depots_result.scalars().all():
         vehicles_inside = []
         for v in vehicles:
             if v.last_latitude and v.last_longitude:

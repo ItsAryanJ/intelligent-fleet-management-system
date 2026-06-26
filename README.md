@@ -1,6 +1,4 @@
-    # NCRTC Intelligent Fleet Management Platform
-
-> Enterprise-grade transport operations platform for NCRTC (National Capital Region Transport Corporation)
+# NCRTC Intelligent Fleet Management Platform
 
 ## 🚀 Tech Stack
 
@@ -22,7 +20,7 @@
 | # | Module | Description |
 |---|--------|-------------|
 | 1 | **Dashboard** | Executive KPIs, utilization charts, incident donut, AI insights |
-| 2 | **AVLS** | Live fleet map with 5s auto-refresh, vehicle markers, detail sidebar |
+| 2 | **AVLS** | Live fleet map with 30s auto-refresh, vehicle markers, detail sidebar |
 | 3 | **Vehicles** | Fleet management with health bars, fuel, GPS status, card grid |
 | 4 | **Routes** | Route network with color-coded cards, stops, frequency |
 | 5 | **Duties** | Shift-grouped scheduling, date nav, bulk assign, conflict detection |
@@ -33,7 +31,6 @@
 | 10 | **AI Copilot** | Chat interface with suggestion chips, role-aware responses |
 | 11 | **Reports** | CSV/PDF report generation and download |
 | 12 | **Audit** | System audit log with activity timeline |
-| 13 | **Search** | Global Ctrl+K search across all entities |
 | 14 | **Notifications** | In-app notification center |
 | 15 | **Depots** | Depot management with geofencing |
 | 16 | **GPS** | Historical replay, trip analytics, WebSocket streaming |
@@ -139,6 +136,3 @@ The seed generator creates realistic NCR transport data:
 | DRIVER | Own duties, notices, panic button |
 | CONDUCTOR | Own duties, notices |
 
-## 📜 License
-
-Internal — NCRTC

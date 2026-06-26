@@ -76,9 +76,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* ── Sidebar ── */}
       <aside
-        className={`sidebar fixed lg:static z-50 h-full transition-all duration-300 ease-in-out flex flex-col ${
-          collapsed ? "w-[72px]" : "w-64"
-        } ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
+        className={`sidebar fixed lg:static z-50 h-full transition-all duration-300 ease-in-out flex flex-col ${collapsed ? "w-[72px]" : "w-64"
+          } ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}
       >
         {/* Brand */}
         <div className="flex items-center gap-3 px-4 py-5 border-b border-white/5">
@@ -148,33 +147,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Menu className="w-5 h-5 text-slate-600 dark:text-slate-300" />
             </button>
 
-            {/* Search trigger (Ctrl+K) */}
-            <button
-              className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-400 text-sm hover:border-brand-400 transition-colors"
-              onClick={() => setSearchOpen(true)}
-            >
-              <Search className="w-4 h-4" />
-              <span>Search...</span>
-              <kbd className="hidden md:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-medium bg-slate-100 dark:bg-slate-800 rounded text-slate-500">
-                ⌘K
-              </kbd>
-            </button>
           </div>
 
           <div className="flex items-center gap-3">
             {/* WebSocket connection status */}
-            <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
-              wsStatus === "connected"
-                ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
-                : wsStatus === "connecting"
+            <div className={`hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${wsStatus === "connected"
+              ? "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400"
+              : wsStatus === "connecting"
                 ? "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400"
                 : "bg-slate-100 dark:bg-slate-800 text-slate-400"
-            }`}>
-              <span className={`w-2 h-2 rounded-full ${
-                wsStatus === "connected" ? "bg-emerald-500 animate-pulse-dot"
+              }`}>
+              <span className={`w-2 h-2 rounded-full ${wsStatus === "connected" ? "bg-emerald-500 animate-pulse-dot"
                 : wsStatus === "connecting" ? "bg-amber-500 animate-pulse"
-                : "bg-slate-400"
-              }`} />
+                  : "bg-slate-400"
+                }`} />
               {wsStatus === "connected" ? "Live" : wsStatus === "connecting" ? "Connecting" : "Offline"}
             </div>
 
