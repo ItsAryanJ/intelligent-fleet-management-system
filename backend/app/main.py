@@ -22,9 +22,16 @@ async def lifespan(app: FastAPI):
     await init_db()
     print("✅ Database initialized")
 
+    # Start GPS Simulator
+    from app.services.gps_simulator import gps_simulator
+    await gps_simulator.start()
+    print("📡 GPS Simulator started")
+
     yield
 
     # Shutdown
+    await gps_simulator.stop()
+    print("📡 GPS Simulator stopped")
     await close_db()
     print("👋 Application shutdown complete")
 

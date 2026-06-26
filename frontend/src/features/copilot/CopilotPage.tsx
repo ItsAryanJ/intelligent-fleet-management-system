@@ -80,7 +80,7 @@ export function CopilotPage() {
             <h2 className="text-sm font-bold text-slate-800 dark:text-white">Fleet AI Copilot</h2>
             <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-dot" />
-              Online — Demo Mode
+              Online
             </p>
           </div>
         </div>
@@ -102,14 +102,12 @@ export function CopilotPage() {
                 </div>
               )}
 
-              <div className={`max-w-[70%] ${
-                msg.role === "user"
+              <div className={`max-w-[70%] ${msg.role === "user"
                   ? "bg-brand-600 text-white rounded-2xl rounded-tr-sm px-4 py-3"
                   : "bg-white dark:bg-surface-900 border border-slate-200 dark:border-slate-800 rounded-2xl rounded-tl-sm px-4 py-3"
-              }`}>
-                <div className={`text-sm whitespace-pre-wrap ${
-                  msg.role === "user" ? "" : "text-slate-800 dark:text-slate-200"
                 }`}>
+                <div className={`text-sm whitespace-pre-wrap ${msg.role === "user" ? "" : "text-slate-800 dark:text-slate-200"
+                  }`}>
                   {msg.content.split("\n").map((line, i) => {
                     // Bold markdown
                     const parts = line.split(/\*\*(.*?)\*\*/g)
@@ -138,9 +136,8 @@ export function CopilotPage() {
                   </div>
                 )}
 
-                <p className={`text-[9px] mt-2 ${
-                  msg.role === "user" ? "text-white/50" : "text-slate-400"
-                }`}>
+                <p className={`text-[9px] mt-2 ${msg.role === "user" ? "text-white/50" : "text-slate-400"
+                  }`}>
                   {msg.timestamp.toLocaleTimeString()}
                 </p>
               </div>
@@ -190,7 +187,7 @@ export function CopilotPage() {
           </div>
         </div>
         <p className="text-center text-[10px] text-slate-400 mt-2">
-          Fleet AI Copilot — Demo mode with pattern-based responses
+          Fleet AI Copilot
         </p>
       </div>
     </div>

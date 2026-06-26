@@ -41,29 +41,36 @@
 ## 🏗️ Architecture
 
 ```
+
 intelligent-fleet-management-system/
 ├── backend/
 │   ├── app/
-│   │   ├── core/          # Config, DB, security, middleware, WebSocket
-│   │   ├── features/      # 15 feature modules (auth, vehicles, GPS, etc.)
-│   │   ├── seed.py        # Realistic NCR seed data generator
-│   │   ├── models.py      # 20+ SQLAlchemy models with PostGIS
-│   │   └── main.py        # FastAPI app factory
+│   │   ├── core/              # Configuration, Database, Security, Middleware, WebSocket
+│   │   ├── features/          # Feature modules (Auth, Vehicles, GPS, Routes, Reports, etc.)
+│   │   ├── services/          # Background services (GPS Simulator)
+│   │   ├── models.py          # SQLAlchemy ORM models with PostGIS support
+│   │   ├── seed.py            # Realistic NCRTC demo data generator
+│   │   └── main.py            # FastAPI application & lifespan events
+│   ├── uploads/               # Uploaded files
 │   ├── requirements.txt
 │   └── Dockerfile
+│
 ├── frontend/
 │   ├── src/
-│   │   ├── components/    # Shared components (AppShell)
-│   │   ├── features/      # 10 feature pages
-│   │   ├── lib/           # API client, utilities
-│   │   ├── store/         # Zustand auth store
-│   │   └── types/         # TypeScript interfaces
+│   │   ├── components/        # Shared UI components
+│   │   ├── features/          # Feature pages (Dashboard, AVLS, Vehicles, etc.)
+│   │   ├── hooks/             # Custom React hooks (GPS WebSocket, Notifications)
+│   │   ├── lib/               # API client & utilities
+│   │   ├── store/             # Zustand state management
+│   │   └── types/             # TypeScript interfaces
 │   ├── package.json
 │   └── Dockerfile
+│
 ├── infrastructure/
-│   └── postgres/init.sql
-├── docker-compose.yml
-└── Makefile
+│   └── postgres/
+│       └── init.sql
+│
+└── docker-compose.yml
 ```
 
 ## 🚀 Quick Start

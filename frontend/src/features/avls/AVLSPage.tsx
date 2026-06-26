@@ -1,37 +1,121 @@
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { motion } from "framer-motion"
 import api from "@/lib/api"
-import type { GPSPosition } from "@/types"
+import { useGPSSocket } from "@/hooks/useGPSSocket"
+import type { GPSPosition, GPSWebSocketUpdate } from "@/types"
 import {
   Bus, MapPin, Gauge, Navigation, Fuel, Activity,
-  Filter, RefreshCw, Maximize2, Layers, Signal,
+  Filter, RefreshCw, Maximize2, Layers, Signal, Radio,
 } from "lucide-react"
+
+// ─── Smooth marker animation duration (ms) ─────────────────────────────────
+const SLIDE_DURATION_MS = 1800
+
+/**
+ * Smoothly animate a Leaflet marker from its current position to a target.
+ * Uses requestAnimationFrame for 60fps interpolation, similar to Google Maps.
+ */
+function slideTo(
+  marker: any,
+  targetLat: number,
+  targetLng: number,
+  durationMs: number
+) {
+  const start = performance.now()
+  const from = marker.getLatLng()
+  const fromLat = from.lat
+  const fromLng = from.lng
+  const dLat = targetLat - fromLat
+  const dLng = targetLng - fromLng
+
+  // Skip animation if distance is negligible (< ~1m)
+  if (Math.abs(dLat) < 0.00001 && Math.abs(dLng) < 0.00001) return
+
+  function animate(now: number) {
+    const elapsed = now - start
+    const t = Math.min(elapsed / durationMs, 1)
+    // Ease-out cubic for natural deceleration feel
+    const ease = 1 - Math.pow(1 - t, 3)
+
+    const lat = fromLat + dLat * ease
+    const lng = fromLng + dLng * ease
+    marker.setLatLng([lat, lng])
+
+    if (t < 1) {
+      requestAnimationFrame(animate)
+    }
+  }
+
+  requestAnimationFrame(animate)
+}
+
+/**
+ * Build the HTML for a vehicle marker icon with rotation and status color.
+ */
+function buildIconHtml(heading: number, statusColor: string): string {
+  return `
+    <div style="
+      width: 32px; height: 32px; border-radius: 50%;
+      background: ${statusColor}; border: 3px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      display: flex; align-items: center; justify-content: center;
+      transform: rotate(${Math.round(heading)}deg);
+      transition: transform 0.8s ease;
+    ">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 2L4 20L12 16L20 20L12 2Z"/>
+      </svg>
+    </div>
+  `
+}
+
+function getStatusColor(status: string): string {
+  switch (status) {
+    case "ACTIVE": return "#10b981"
+    case "MAINTENANCE": return "#f59e0b"
+    case "BREAKDOWN": return "#ef4444"
+    default: return "#64748b"
+  }
+}
 
 export function AVLSPage() {
   const [selectedVehicle, setSelectedVehicle] = useState<GPSPosition | null>(null)
   const [filterStatus, setFilterStatus] = useState<string>("ALL")
   const mapRef = useRef<HTMLDivElement>(null)
-  const [mapInstance, setMapInstance] = useState<any>(null)
-  const [markers, setMarkers] = useState<any[]>([])
+  const mapInstance = useRef<any>(null)
   const leafletRef = useRef<any>(null)
 
-  const { data: positions = [], isLoading, refetch } = useQuery({
+  // Persistent marker map: vehicle_id → L.Marker
+  const markerMap = useRef<Map<string, any>>(new Map())
+
+  // Latest position data for all vehicles (kept in sync via WS + initial load)
+  const positionsRef = useRef<Map<string, GPSPosition>>(new Map())
+  const [positionsList, setPositionsList] = useState<GPSPosition[]>([])
+
+  // Connect to the GPS WebSocket for real-time updates
+  const { status: wsStatus } = useGPSSocket()
+
+  // Initial load of all vehicle positions
+  const { isLoading, refetch } = useQuery({
     queryKey: ["gps", "live"],
     queryFn: async () => {
       const res = await api.get("/gps/live")
-      return res.data as GPSPosition[]
+      const data = res.data as GPSPosition[]
+
+      // Populate positions map
+      for (const pos of data) {
+        positionsRef.current.set(pos.vehicle_id, pos)
+      }
+      setPositionsList(data)
+      return data
     },
-    refetchInterval: 5000, // Auto-refresh every 5 seconds
+    refetchInterval: 30000, // Fallback poll every 30s (WS handles real-time)
   })
 
-  const filteredPositions = filterStatus === "ALL"
-    ? positions
-    : positions.filter((p) => p.status === filterStatus)
-
-  // Initialize Leaflet map
+  // ─── Initialize Leaflet Map ────────────────────────────────────────────
   useEffect(() => {
-    if (!mapRef.current || mapInstance) return
+    if (!mapRef.current || mapInstance.current) return
 
     const loadMap = async () => {
       const L = await import("leaflet")
@@ -44,89 +128,167 @@ export function AVLSPage() {
         zoomControl: false,
       })
 
-      // OpenStreetMap tiles (free)
+      // Dark-mode CartoDB tiles
       L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
         attribution: '© CartoDB © OSM',
         maxZoom: 19,
       }).addTo(map)
 
       L.control.zoom({ position: "bottomright" }).addTo(map)
-      setMapInstance(map)
+      mapInstance.current = map
     }
 
     loadMap()
 
     return () => {
-      if (mapInstance) {
-        mapInstance.remove()
+      if (mapInstance.current) {
+        mapInstance.current.remove()
+        mapInstance.current = null
       }
     }
   }, [])
 
-  // Update markers when positions change
+  // ─── Create / update markers from initial positions ────────────────────
   useEffect(() => {
-    if (!mapInstance || !leafletRef.current) return
+    if (!mapInstance.current || !leafletRef.current) return
 
     const L = leafletRef.current
+    const filteredPositions = filterStatus === "ALL"
+      ? positionsList
+      : positionsList.filter((p) => p.status === filterStatus)
 
-    // Clear old markers
-    markers.forEach((m: any) => m.remove())
+    // Track which vehicles are visible in the current filter
+    const visibleIds = new Set(filteredPositions.map((p) => p.vehicle_id))
 
-    const newMarkers = filteredPositions.map((pos) => {
-      const statusColor = pos.status === "ACTIVE" ? "#10b981"
-        : pos.status === "MAINTENANCE" ? "#f59e0b"
-        : pos.status === "BREAKDOWN" ? "#ef4444"
-        : "#64748b"
-
-      const icon = L.divIcon({
-        className: "custom-marker",
-        html: `
-          <div style="
-            width: 32px; height: 32px; border-radius: 50%;
-            background: ${statusColor}; border: 3px solid white;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-            display: flex; align-items: center; justify-content: center;
-            transform: rotate(${pos.heading}deg);
-            transition: all 0.5s ease;
-          ">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L4 20L12 16L20 20L12 2Z"/>
-            </svg>
-          </div>
-        `,
-        iconSize: [32, 32],
-        iconAnchor: [16, 16],
-      })
-
-      const marker = L.marker([pos.latitude, pos.longitude], { icon })
-        .addTo(mapInstance)
-        .on("click", () => setSelectedVehicle(pos))
-
-      marker.bindPopup(`
-        <div style="font-family: Inter, sans-serif; min-width: 180px;">
-          <strong style="font-size: 13px;">${pos.registration_no}</strong>
-          <div style="margin-top: 4px; font-size: 11px; color: #94a3b8;">
-            ${pos.vehicle_type} · ${pos.depot_name || "—"}
-          </div>
-          <div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 11px;">
-            <span>Speed: <strong>${pos.speed?.toFixed(0)} km/h</strong></span>
-            <span>Heading: <strong>${pos.heading?.toFixed(0)}°</strong></span>
-          </div>
-        </div>
-      `)
-
-      return marker
+    // Remove markers for vehicles no longer visible
+    markerMap.current.forEach((marker, id) => {
+      if (!visibleIds.has(id)) {
+        marker.remove()
+        markerMap.current.delete(id)
+      }
     })
 
-    setMarkers(newMarkers)
-  }, [mapInstance, filteredPositions])
+    // Create or update markers
+    for (const pos of filteredPositions) {
+      if (pos.latitude == null || pos.longitude == null) continue
 
+      const existing = markerMap.current.get(pos.vehicle_id)
+      if (existing) {
+        // Update existing marker position (no animation on initial load)
+        existing.setLatLng([pos.latitude, pos.longitude])
+        // Update icon rotation
+        const iconEl = existing.getElement()
+        if (iconEl) {
+          const inner = iconEl.querySelector("div")
+          if (inner) inner.style.transform = `rotate(${Math.round(pos.heading || 0)}deg)`
+        }
+      } else {
+        // Create new marker
+        const icon = L.divIcon({
+          className: "custom-marker",
+          html: buildIconHtml(pos.heading || 0, getStatusColor(pos.status)),
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
+        })
+
+        const marker = L.marker([pos.latitude, pos.longitude], { icon })
+          .addTo(mapInstance.current)
+          .on("click", () => {
+            // Always read latest position from the ref map
+            const latest = positionsRef.current.get(pos.vehicle_id)
+            setSelectedVehicle(latest || pos)
+          })
+
+        marker.bindPopup(`
+          <div style="font-family: Inter, sans-serif; min-width: 180px;">
+            <strong style="font-size: 13px;">${pos.registration_no}</strong>
+            <div style="margin-top: 4px; font-size: 11px; color: #94a3b8;">
+              ${pos.vehicle_type} · ${pos.depot_name || "—"}
+            </div>
+            <div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; font-size: 11px;">
+              <span>Speed: <strong class="marker-speed-${pos.vehicle_id}">${pos.speed?.toFixed(0)} km/h</strong></span>
+              <span>Heading: <strong class="marker-heading-${pos.vehicle_id}">${pos.heading?.toFixed(0)}°</strong></span>
+            </div>
+          </div>
+        `)
+
+        markerMap.current.set(pos.vehicle_id, marker)
+      }
+    }
+  }, [positionsList, filterStatus])
+
+  // ─── WebSocket-driven real-time marker updates ─────────────────────────
+  const handleGPSUpdate = useCallback((event: Event) => {
+    const update = (event as CustomEvent<GPSWebSocketUpdate>).detail
+    if (!update || !update.vehicle_id) return
+
+    // Update positions map with new data
+    const existing = positionsRef.current.get(update.vehicle_id)
+    if (existing) {
+      existing.latitude = update.latitude
+      existing.longitude = update.longitude
+      existing.speed = update.speed
+      existing.heading = update.heading
+      existing.last_updated = update.timestamp
+    } else {
+      // New vehicle appeared — store it and trigger re-render to create marker
+      positionsRef.current.set(update.vehicle_id, {
+        vehicle_id: update.vehicle_id,
+        registration_no: update.registration_no,
+        vehicle_type: "BUS",
+        status: "ACTIVE",
+        latitude: update.latitude,
+        longitude: update.longitude,
+        speed: update.speed,
+        heading: update.heading,
+        ignition_on: true,
+        last_updated: update.timestamp,
+      })
+      setPositionsList(Array.from(positionsRef.current.values()))
+      return
+    }
+
+    // Smoothly animate existing marker to new position
+    const marker = markerMap.current.get(update.vehicle_id)
+    if (marker) {
+      slideTo(marker, update.latitude, update.longitude, SLIDE_DURATION_MS)
+
+      // Rotate icon to match heading
+      const iconEl = marker.getElement()
+      if (iconEl) {
+        const inner = iconEl.querySelector("div")
+        if (inner) inner.style.transform = `rotate(${Math.round(update.heading)}deg)`
+      }
+    }
+
+    // Update selected vehicle panel if this vehicle is selected
+    setSelectedVehicle((prev) => {
+      if (prev && prev.vehicle_id === update.vehicle_id) {
+        return {
+          ...prev,
+          latitude: update.latitude,
+          longitude: update.longitude,
+          speed: update.speed,
+          heading: update.heading,
+          last_updated: update.timestamp,
+        }
+      }
+      return prev
+    })
+  }, [])
+
+  useEffect(() => {
+    window.addEventListener("ws-gps-update", handleGPSUpdate)
+    return () => window.removeEventListener("ws-gps-update", handleGPSUpdate)
+  }, [handleGPSUpdate])
+
+  // ─── Status Counts ─────────────────────────────────────────────────────
   const statusCounts = {
-    ALL: positions.length,
-    ACTIVE: positions.filter((p) => p.status === "ACTIVE").length,
-    MAINTENANCE: positions.filter((p) => p.status === "MAINTENANCE").length,
-    BREAKDOWN: positions.filter((p) => p.status === "BREAKDOWN").length,
-    IDLE: positions.filter((p) => p.status === "IDLE").length,
+    ALL: positionsList.length,
+    ACTIVE: positionsList.filter((p) => p.status === "ACTIVE").length,
+    MAINTENANCE: positionsList.filter((p) => p.status === "MAINTENANCE").length,
+    BREAKDOWN: positionsList.filter((p) => p.status === "BREAKDOWN").length,
+    IDLE: positionsList.filter((p) => p.status === "IDLE").length,
   }
 
   return (
@@ -139,7 +301,19 @@ export function AVLSPage() {
             Live Fleet Tracking
           </h2>
           <span className="text-xs text-slate-500 dark:text-slate-400">
-            {positions.length} vehicles tracked
+            {positionsList.length} vehicles tracked
+          </span>
+        </div>
+
+        {/* WebSocket status indicator */}
+        <div className="flex items-center gap-1.5 ml-2">
+          <span className={`w-2 h-2 rounded-full ${
+            wsStatus === "connected" ? "bg-emerald-400 animate-pulse" :
+            wsStatus === "connecting" ? "bg-amber-400 animate-pulse" :
+            "bg-red-400"
+          }`} />
+          <span className="text-[10px] font-medium text-slate-400">
+            {wsStatus === "connected" ? "Live" : wsStatus === "connecting" ? "Connecting..." : "Offline"}
           </span>
         </div>
 

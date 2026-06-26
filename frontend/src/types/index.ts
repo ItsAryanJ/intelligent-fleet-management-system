@@ -216,3 +216,14 @@ export interface CopilotMessage {
   data?: Record<string, unknown>
   timestamp: Date
 }
+
+export interface GPSWebSocketUpdate {
+  type: "gps_update"
+  vehicle_id: string
+  registration_no: string
+  latitude: number
+  longitude: number
+  speed: number
+  heading: number
+  timestamp: string
+}

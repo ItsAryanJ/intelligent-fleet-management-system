@@ -131,6 +131,10 @@ async def seed_database():
     engine = create_async_engine(settings.database_url, echo=False)
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
+    # Create all tables first
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
     async with async_session() as db:
         # ── Idempotency check ─────────────────────────────────────────
         existing = await db.execute(select(Role).limit(1))
