@@ -309,6 +309,44 @@ async def acknowledge_notice(
     return {"message": "Notice acknowledged"}
 
 
+@router.get("/{notice_id}/readers")
+async def notice_readers(
+    notice_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(require_permission(Permission.NOTICE_PUBLISH))],
+):
+    """Get list of users who have read/acknowledged a notice."""
+    from app.models import User
+
+    notice = await db.get(Notice, notice_id)
+    if not notice:
+        raise NotFoundException("Notice", notice_id)
+
+    stmt = (
+        select(NoticeRead, User)
+        .join(User, NoticeRead.user_id == User.id)
+        .where(NoticeRead.notice_id == notice_id)
+        .order_by(NoticeRead.read_at.desc())
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    return {
+        "notice_id": str(notice_id),
+        "total_reads": len(rows),
+        "readers": [
+            {
+                "user_id": str(nr.user_id),
+                "name": u.full_name,
+                "email": u.email,
+                "read_at": nr.read_at.isoformat(),
+                "acknowledged_at": nr.acknowledged_at.isoformat() if nr.acknowledged_at else None,
+            }
+            for nr, u in rows
+        ],
+    }
+
+
 def _notice_to_dict(n: Notice) -> dict:
     return {
         "id": str(n.id),

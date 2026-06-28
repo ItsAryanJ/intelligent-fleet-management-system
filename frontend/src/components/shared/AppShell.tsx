@@ -17,9 +17,11 @@ import {
 const NAV_ITEMS = [
   { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard, permission: null },
   { path: "/avls", label: "Live Fleet Map", icon: Map, permission: "gps.view" },
+  { path: "/avls/history", label: "GPS History", icon: Activity, permission: "gps.view" },
   { path: "/vehicles", label: "Vehicles", icon: Bus, permission: "vehicle.view" },
   { path: "/routes", label: "Routes", icon: Route, permission: "route.view" },
   { path: "/duties", label: "Duty Schedule", icon: CalendarDays, permission: "duty.view" },
+  { path: "/roster", label: "Duty Roster", icon: ClipboardList, permission: "duty.view" },
   { path: "/incidents", label: "Incidents", icon: AlertTriangle, permission: "incident.view" },
   { path: "/notices", label: "Notices", icon: Megaphone, permission: "notice.view" },
   { path: "/leaves", label: "Leave Mgmt", icon: CalendarCheck, permission: null },

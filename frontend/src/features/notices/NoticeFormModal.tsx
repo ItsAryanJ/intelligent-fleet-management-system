@@ -5,6 +5,7 @@ import { FormField } from "@/components/shared/FormField"
 import { useToast } from "@/components/shared/Toast"
 import api from "@/lib/api"
 import { Loader2 } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
 
 interface NoticeFormModalProps {
   open: boolean
@@ -43,8 +44,21 @@ export function NoticeFormModal({ open, onClose }: NoticeFormModalProps) {
       summary: "",
       priority: "NORMAL",
       target_type: "ALL",
+      target_roles: [] as string[],
+      target_depot_ids: [] as string[],
       language: "en",
     },
+  })
+
+  const watchTargetType = methods.watch("target_type")
+
+  const { data: depots } = useQuery({
+    queryKey: ["depots"],
+    queryFn: async () => {
+      const res = await api.get("/depots")
+      return res.data?.items || res.data || []
+    },
+    enabled: watchTargetType === "DEPOT",
   })
 
   const mutation = useMutation({
@@ -70,7 +84,13 @@ export function NoticeFormModal({ open, onClose }: NoticeFormModalProps) {
     },
   })
 
-  const onSubmit = methods.handleSubmit((data) => mutation.mutate(data))
+  const onSubmit = methods.handleSubmit((data) => {
+    const payload: any = { ...data }
+    // Only include targeting fields when relevant
+    if (data.target_type !== "ROLE") delete payload.target_roles
+    if (data.target_type !== "DEPOT") delete payload.target_depot_ids
+    mutation.mutate(payload)
+  })
 
   return (
     <Modal
@@ -126,6 +146,46 @@ export function NoticeFormModal({ open, onClose }: NoticeFormModalProps) {
               ]}
             />
           </div>
+
+          {/* Role targeting checkboxes */}
+          {watchTargetType === "ROLE" && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Target Roles</label>
+              <div className="grid grid-cols-2 gap-2">
+                {ROLE_OPTIONS.map((role) => (
+                  <label key={role.value} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      value={role.value}
+                      {...methods.register("target_roles")}
+                      className="rounded border-slate-300 dark:border-slate-600 text-brand-600 focus:ring-brand-500"
+                    />
+                    {role.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Depot targeting selector */}
+          {watchTargetType === "DEPOT" && (
+            <div>
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">Target Depots</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(depots || []).map((depot: any) => (
+                  <label key={depot.id} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      value={depot.id}
+                      {...methods.register("target_depot_ids")}
+                      className="rounded border-slate-300 dark:border-slate-600 text-brand-600 focus:ring-brand-500"
+                    />
+                    {depot.name}
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
             <button

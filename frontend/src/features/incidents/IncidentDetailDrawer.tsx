@@ -8,6 +8,7 @@ import type { Incident, IncidentEvent } from "@/types"
 import {
   X, Clock, User, Bus, MapPin, Shield, Timer,
   CheckCircle2, AlertTriangle, Send, UserPlus, Loader2,
+  PlayCircle, XCircle,
 } from "lucide-react"
 
 interface Props {
@@ -28,7 +29,9 @@ const EVENT_ICONS: Record<string, typeof Clock> = {
   created: AlertTriangle,
   assigned: UserPlus,
   acknowledged: CheckCircle2,
+  in_progress: PlayCircle,
   resolved: CheckCircle2,
+  closed: XCircle,
   panic: Shield,
   note: Send,
 }
@@ -40,6 +43,8 @@ export function IncidentDetailDrawer({ incidentId, onClose }: Props) {
   const [noteText, setNoteText] = useState("")
   const [resolveNotes, setResolveNotes] = useState("")
   const [showResolve, setShowResolve] = useState(false)
+  const [selectedAssignee, setSelectedAssignee] = useState("")
+  const [showAssign, setShowAssign] = useState(false)
 
   const { data: incident, isLoading } = useQuery({
     queryKey: ["incident", incidentId],
@@ -63,6 +68,59 @@ export function IncidentDetailDrawer({ incidentId, onClose }: Props) {
     },
   })
 
+  // Fetch assignable users (control operators, depot managers)
+  const { data: assignees } = useQuery({
+    queryKey: ["assignable-users"],
+    queryFn: async () => {
+      const res = await api.get("/users", { params: { page_size: 100 } })
+      return (res.data.items || []).filter((u: any) =>
+        ["ADMIN", "CONTROL_OPERATOR", "DEPOT_MANAGER"].includes(u.role_name || u.role?.name)
+      )
+    },
+    enabled: !!incidentId,
+  })
+
+  const acknowledgeMutation = useMutation({
+    mutationFn: async () =>
+      api.post(`/incidents/${incidentId}/acknowledge`, { status: "ACKNOWLEDGED", notes: "Incident acknowledged" }),
+    onSuccess: () => {
+      toast({ variant: "success", title: "Incident acknowledged" })
+      queryClient.invalidateQueries({ queryKey: ["incident", incidentId] })
+      queryClient.invalidateQueries({ queryKey: ["incidents"] })
+    },
+    onError: (err: any) => {
+      toast({ variant: "error", title: "Error", description: err.response?.data?.detail || "Failed." })
+    },
+  })
+
+  const assignMutation = useMutation({
+    mutationFn: async (assignedTo: string) =>
+      api.post(`/incidents/${incidentId}/assign`, { assigned_to: assignedTo }),
+    onSuccess: () => {
+      toast({ variant: "success", title: "Incident assigned" })
+      setShowAssign(false)
+      setSelectedAssignee("")
+      queryClient.invalidateQueries({ queryKey: ["incident", incidentId] })
+      queryClient.invalidateQueries({ queryKey: ["incidents"] })
+    },
+    onError: (err: any) => {
+      toast({ variant: "error", title: "Error", description: err.response?.data?.detail || "Failed." })
+    },
+  })
+
+  const startWorkMutation = useMutation({
+    mutationFn: async () =>
+      api.post(`/incidents/${incidentId}/in-progress`, { status: "IN_PROGRESS", notes: "Work started" }),
+    onSuccess: () => {
+      toast({ variant: "success", title: "Incident in progress" })
+      queryClient.invalidateQueries({ queryKey: ["incident", incidentId] })
+      queryClient.invalidateQueries({ queryKey: ["incidents"] })
+    },
+    onError: (err: any) => {
+      toast({ variant: "error", title: "Error", description: err.response?.data?.detail || "Failed." })
+    },
+  })
+
   const resolveMutation = useMutation({
     mutationFn: async () =>
       api.post(`/incidents/${incidentId}/resolve`, { status: "RESOLVED", notes: resolveNotes }),
@@ -75,6 +133,19 @@ export function IncidentDetailDrawer({ incidentId, onClose }: Props) {
     },
     onError: (err: any) => {
       toast({ variant: "error", title: "Error", description: err.response?.data?.detail || "Failed to resolve." })
+    },
+  })
+
+  const closeMutation = useMutation({
+    mutationFn: async () =>
+      api.post(`/incidents/${incidentId}/close`, { status: "CLOSED", notes: "Incident closed" }),
+    onSuccess: () => {
+      toast({ variant: "success", title: "Incident closed" })
+      queryClient.invalidateQueries({ queryKey: ["incident", incidentId] })
+      queryClient.invalidateQueries({ queryKey: ["incidents"] })
+    },
+    onError: (err: any) => {
+      toast({ variant: "error", title: "Error", description: err.response?.data?.detail || "Failed." })
     },
   })
 
@@ -230,43 +301,148 @@ export function IncidentDetailDrawer({ incidentId, onClose }: Props) {
               )}
             </div>
 
-            {/* Action footer */}
-            {!["RESOLVED", "CLOSED"].includes(incident.status) && (
-              <div className="sticky bottom-0 p-4 border-t border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-surface-900/90 backdrop-blur-xl">
-                {showResolve ? (
-                  <div className="space-y-3">
-                    <textarea
-                      value={resolveNotes}
-                      onChange={(e) => setResolveNotes(e.target.value)}
-                      placeholder="Resolution notes..."
-                      rows={2}
-                      className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
-                    />
+            {/* Action footer — context-aware status transitions */}
+            {incident.status !== "CLOSED" && (
+              <div className="sticky bottom-0 p-4 border-t border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-surface-900/90 backdrop-blur-xl space-y-3">
+                {/* Acknowledge button for OPEN incidents */}
+                {incident.status === "OPEN" && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => acknowledgeMutation.mutate()}
+                      disabled={acknowledgeMutation.isPending}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600 text-white text-sm font-semibold hover:bg-amber-500 transition-colors shadow-md shadow-amber-500/20"
+                    >
+                      {acknowledgeMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                      <CheckCircle2 className="w-4 h-4" />
+                      Acknowledge
+                    </button>
+                    <button
+                      onClick={() => setShowAssign(!showAssign)}
+                      className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+
+                {/* Assign + Start Work for ACKNOWLEDGED incidents */}
+                {incident.status === "ACKNOWLEDGED" && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowAssign(!showAssign)}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-500 transition-colors shadow-md shadow-blue-500/20"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      Assign
+                    </button>
+                    <button
+                      onClick={() => startWorkMutation.mutate()}
+                      disabled={startWorkMutation.isPending}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-500 transition-colors shadow-md shadow-violet-500/20"
+                    >
+                      {startWorkMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                      <PlayCircle className="w-4 h-4" />
+                      Start Work
+                    </button>
+                  </div>
+                )}
+
+                {/* Start Work for ASSIGNED incidents */}
+                {incident.status === "ASSIGNED" && (
+                  <button
+                    onClick={() => startWorkMutation.mutate()}
+                    disabled={startWorkMutation.isPending}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-semibold hover:bg-violet-500 transition-colors shadow-md shadow-violet-500/20"
+                  >
+                    {startWorkMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                    <PlayCircle className="w-4 h-4" />
+                    Start Work
+                  </button>
+                )}
+
+                {/* Resolve for IN_PROGRESS incidents */}
+                {incident.status === "IN_PROGRESS" && (
+                  showResolve ? (
+                    <div className="space-y-3">
+                      <textarea
+                        value={resolveNotes}
+                        onChange={(e) => setResolveNotes(e.target.value)}
+                        placeholder="Resolution notes (required)..."
+                        rows={2}
+                        className="w-full px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-800 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setShowResolve(false)}
+                          className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => resolveMutation.mutate()}
+                          disabled={resolveMutation.isPending || !resolveNotes.trim()}
+                          className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:opacity-50 transition-colors shadow-md shadow-emerald-500/20"
+                        >
+                          {resolveMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                          Confirm Resolve
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowResolve(true)}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-500 transition-colors shadow-md shadow-emerald-500/20"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      Resolve Incident
+                    </button>
+                  )
+                )}
+
+                {/* Close for RESOLVED incidents */}
+                {incident.status === "RESOLVED" && (
+                  <button
+                    onClick={() => closeMutation.mutate()}
+                    disabled={closeMutation.isPending}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-600 text-white text-sm font-semibold hover:bg-slate-500 transition-colors shadow-md shadow-slate-500/20"
+                  >
+                    {closeMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                    <XCircle className="w-4 h-4" />
+                    Close Incident
+                  </button>
+                )}
+
+                {/* Assign dropdown */}
+                {showAssign && (
+                  <div className="space-y-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Assign to:</p>
+                    <select
+                      value={selectedAssignee}
+                      onChange={(e) => setSelectedAssignee(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select a handler...</option>
+                      {(assignees || []).map((u: any) => (
+                        <option key={u.id} value={u.id}>{u.first_name} {u.last_name} ({u.role_name || u.role?.name})</option>
+                      ))}
+                    </select>
                     <div className="flex gap-2">
                       <button
-                        onClick={() => setShowResolve(false)}
+                        onClick={() => { setShowAssign(false); setSelectedAssignee("") }}
                         className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                       >
                         Cancel
                       </button>
                       <button
-                        onClick={() => resolveMutation.mutate()}
-                        disabled={resolveMutation.isPending}
-                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-500 disabled:opacity-50 transition-colors shadow-md shadow-emerald-500/20"
+                        onClick={() => selectedAssignee && assignMutation.mutate(selectedAssignee)}
+                        disabled={!selectedAssignee || assignMutation.isPending}
+                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-500 disabled:opacity-50 transition-colors"
                       >
-                        {resolveMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
-                        Confirm Resolve
+                        {assignMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                        Assign
                       </button>
                     </div>
                   </div>
-                ) : (
-                  <button
-                    onClick={() => setShowResolve(true)}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-500 transition-colors shadow-md shadow-emerald-500/20"
-                  >
-                    <CheckCircle2 className="w-4 h-4" />
-                    Resolve Incident
-                  </button>
                 )}
               </div>
             )}

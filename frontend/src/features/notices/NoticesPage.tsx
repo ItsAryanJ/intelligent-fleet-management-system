@@ -110,6 +110,14 @@ export function NoticesPage() {
                         day: "numeric", month: "short", year: "numeric",
                       }) : "Draft"}
                     </span>
+                    {!notice.is_published && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); publishMutation.mutate(notice.id) }}
+                        className="px-2 py-0.5 rounded text-[10px] font-semibold bg-brand-100 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-800 hover:bg-brand-200 dark:hover:bg-brand-900/50 transition-colors"
+                      >
+                        Publish
+                      </button>
+                    )}
                     {notice.read_count != null && (
                       <span className="flex items-center gap-1">
                         <Eye className="w-3 h-3" /> {notice.read_count} reads

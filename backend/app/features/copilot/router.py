@@ -37,6 +37,7 @@ class CopilotResponse(BaseModel):
     data: Optional[dict] = None
     tool_used: Optional[str] = None
     session_id: Optional[str] = None
+    mode: str = "demo"  # "demo" or "live" — surfaced in UI
 
 
 # ── Tool Registry with Role Permissions ──────────────────────────────────
@@ -180,6 +181,8 @@ async def chat(
 
     else:
         return await _handle_general_query(db, current_user, message)
+
+    # Note: All handler functions now return CopilotResponse which includes mode="demo"
 
 
 async def _handle_duty_query(db: AsyncSession, user: CurrentUser, message: str) -> CopilotResponse:
@@ -361,8 +364,7 @@ async def _handle_performance_query(db: AsyncSession, user: CurrentUser, message
 async def _handle_general_query(db: AsyncSession, user: CurrentUser, message: str) -> CopilotResponse:
     return CopilotResponse(
         response=(
-            f"I understood your query: *\"{message}\"*\n\n"
-            "I'm your fleet operations AI assistant. Try asking me about:\n"
+            "I'm not sure I understand that request. Here's what I can help with:\n\n"
             "• Today's duties and schedules\n"
             "• Open incidents and SLA status\n"
             "• Fleet and vehicle status\n"

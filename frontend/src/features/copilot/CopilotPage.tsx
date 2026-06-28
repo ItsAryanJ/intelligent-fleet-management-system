@@ -22,12 +22,16 @@ export function CopilotPage() {
   const [input, setInput] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  // Track whether copilot is in demo mode
+  const [copilotMode, setCopilotMode] = useState<string>("demo")
+
   const chatMutation = useMutation({
     mutationFn: async (message: string) => {
       const res = await api.post("/copilot/chat", { message })
       return res.data
     },
     onSuccess: (data) => {
+      if (data.mode) setCopilotMode(data.mode)
       setMessages((prev) => [
         ...prev,
         {
@@ -77,10 +81,17 @@ export function CopilotPage() {
             <Bot className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="text-sm font-bold text-slate-800 dark:text-white">Fleet AI Copilot</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-slate-800 dark:text-white">Fleet AI Copilot</h2>
+              {copilotMode === "demo" && (
+                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/30">
+                  DEMO MODE
+                </span>
+              )}
+            </div>
             <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-dot" />
-              Online
+              Online{copilotMode === "demo" ? " · Pattern-based responses" : " · AI Powered"}
             </p>
           </div>
         </div>

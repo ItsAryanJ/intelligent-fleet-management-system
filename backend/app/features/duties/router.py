@@ -398,6 +398,60 @@ async def check_conflicts(
     return {"date": target_date.isoformat(), "conflicts": conflicts, "total": len(conflicts)}
 
 
+@router.post("/publish")
+async def publish_roster(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(require_permission(Permission.DUTY_PUBLISH))],
+    roster_date: date = Query(..., description="Date to publish duties for"),
+):
+    """Publish all DRAFT duties for a given date (DRAFT → PUBLISHED)."""
+    from app.models import Notification, NotificationType
+
+    stmt = (
+        select(Duty)
+        .options(selectinload(Duty.driver), selectinload(Duty.conductor))
+        .where(
+            Duty.date == roster_date,
+            Duty.status == DutyStatus.DRAFT,
+            Duty.is_deleted == False,
+        )
+    )
+    result = await db.execute(stmt)
+    duties = result.scalars().all()
+
+    if not duties:
+        raise BadRequestException(f"No DRAFT duties found for {roster_date.isoformat()}")
+
+    published = 0
+    for duty in duties:
+        duty.status = DutyStatus.PUBLISHED
+
+        # Notify assigned driver
+        if duty.driver_id:
+            db.add(Notification(
+                user_id=duty.driver_id,
+                notification_type=NotificationType.DUTY_PUBLISHED,
+                title=f"Duty Published — {roster_date.isoformat()}",
+                message=f"Your duty for {roster_date.isoformat()} ({duty.shift}) has been published.",
+                link="/duties",
+            ))
+
+        # Notify assigned conductor
+        if duty.conductor_id:
+            db.add(Notification(
+                user_id=duty.conductor_id,
+                notification_type=NotificationType.DUTY_PUBLISHED,
+                title=f"Duty Published — {roster_date.isoformat()}",
+                message=f"Your duty for {roster_date.isoformat()} ({duty.shift}) has been published.",
+                link="/duties",
+            ))
+
+        published += 1
+
+    await db.flush()
+    return {"message": f"Published {published} duties for {roster_date.isoformat()}", "published": published}
+
+
 def _duty_to_dict(d: Duty) -> dict:
     return {
         "id": str(d.id),

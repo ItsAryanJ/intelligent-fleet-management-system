@@ -46,6 +46,32 @@ class AddEventRequest(BaseModel):
     description: str
 
 
+class AssignRequest(BaseModel):
+    assigned_to: UUID
+
+
+# Valid state transitions
+VALID_TRANSITIONS: dict[str, list[str]] = {
+    "OPEN": ["ACKNOWLEDGED"],
+    "ACKNOWLEDGED": ["ASSIGNED", "IN_PROGRESS"],
+    "ASSIGNED": ["IN_PROGRESS"],
+    "IN_PROGRESS": ["RESOLVED"],
+    "RESOLVED": ["CLOSED"],
+    "CLOSED": [],
+}
+
+
+def _validate_transition(current: str, target: str) -> None:
+    """Validate that a status transition is allowed."""
+    current_str = current if isinstance(current, str) else current.value
+    allowed = VALID_TRANSITIONS.get(current_str, [])
+    if target not in allowed:
+        raise BadRequestException(
+            f"Cannot transition from {current_str} to {target}. "
+            f"Allowed transitions: {', '.join(allowed) if allowed else 'none'}"
+        )
+
+
 @router.get("")
 async def list_incidents(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -290,10 +316,47 @@ async def panic_button(
     return {"id": incident.id, "incident_no": incident.incident_no, "severity": "P1"}
 
 
+@router.post("/{incident_id}/acknowledge")
+async def acknowledge_incident(
+    incident_id: UUID,
+    body: IncidentUpdateStatus,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(require_permission(Permission.INCIDENT_VIEW))],
+):
+    """Acknowledge an incident."""
+    stmt = (
+        select(Incident)
+        .options(selectinload(Incident.reported_by_user))
+        .where(Incident.id == incident_id, Incident.is_deleted == False)
+    )
+    result = await db.execute(stmt)
+    incident = result.scalar_one_or_none()
+
+    if not incident:
+        raise NotFoundException("Incident", incident_id)
+    
+    _validate_transition(incident.status, "ACKNOWLEDGED")
+
+    now = datetime.now(timezone.utc)
+    incident.status = IncidentStatus.ACKNOWLEDGED
+    incident.acknowledged_at = now
+
+    event = IncidentEvent(
+        incident_id=incident.id,
+        event_type="acknowledged",
+        description=body.notes or "Incident acknowledged",
+        created_by=current_user.id,
+    )
+    db.add(event)
+    await db.flush()
+
+    return {"message": "Incident acknowledged"}
+
+
 @router.post("/{incident_id}/assign")
 async def assign_incident(
     incident_id: UUID,
-    assigned_to: UUID,
+    body: AssignRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[CurrentUser, Depends(require_permission(Permission.INCIDENT_ASSIGN))],
 ):
@@ -318,8 +381,17 @@ async def assign_incident(
     ):
         raise NotFoundException("Incident", incident_id)
 
-    incident.assigned_to = assigned_to
+    # Allow assign from ACKNOWLEDGED or OPEN
+    current_str = incident.status if isinstance(incident.status, str) else incident.status.value
+    if current_str not in ["OPEN", "ACKNOWLEDGED"]:
+        raise BadRequestException(
+            f"Cannot assign incident in status {current_str}. Must be OPEN or ACKNOWLEDGED."
+        )
+
+    incident.assigned_to = body.assigned_to
     incident.status = IncidentStatus.ASSIGNED
+    if not incident.acknowledged_at:
+        incident.acknowledged_at = datetime.now(timezone.utc)
 
     event = IncidentEvent(
         incident_id=incident.id,
@@ -333,6 +405,41 @@ async def assign_incident(
     return {"message": "Incident assigned"}
 
 
+@router.post("/{incident_id}/in-progress")
+async def start_incident(
+    incident_id: UUID,
+    body: IncidentUpdateStatus,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(require_permission(Permission.INCIDENT_VIEW))],
+):
+    """Mark incident as in-progress."""
+    stmt = (
+        select(Incident)
+        .options(selectinload(Incident.reported_by_user))
+        .where(Incident.id == incident_id, Incident.is_deleted == False)
+    )
+    result = await db.execute(stmt)
+    incident = result.scalar_one_or_none()
+
+    if not incident:
+        raise NotFoundException("Incident", incident_id)
+
+    _validate_transition(incident.status, "IN_PROGRESS")
+
+    incident.status = IncidentStatus.IN_PROGRESS
+
+    event = IncidentEvent(
+        incident_id=incident.id,
+        event_type="in_progress",
+        description=body.notes or "Work started on incident",
+        created_by=current_user.id,
+    )
+    db.add(event)
+    await db.flush()
+
+    return {"message": "Incident marked as in-progress"}
+
+
 @router.post("/{incident_id}/resolve")
 async def resolve_incident(
     incident_id: UUID,
@@ -341,6 +448,9 @@ async def resolve_incident(
     current_user: Annotated[CurrentUser, Depends(require_permission(Permission.INCIDENT_RESOLVE))],
 ):
     """Resolve an incident."""
+    if not body.notes:
+        raise BadRequestException("Resolution notes are required to resolve an incident.")
+
     stmt = (
         select(Incident)
         .options(selectinload(Incident.reported_by_user))
@@ -362,6 +472,8 @@ async def resolve_incident(
     ):
         raise NotFoundException("Incident", incident_id)
     
+    _validate_transition(incident.status, "RESOLVED")
+
     now = datetime.now(timezone.utc)
     incident.status = IncidentStatus.RESOLVED
     incident.resolved_at = now
@@ -379,6 +491,42 @@ async def resolve_incident(
     await db.flush()
 
     return {"message": "Incident resolved"}
+
+
+@router.post("/{incident_id}/close")
+async def close_incident(
+    incident_id: UUID,
+    body: IncidentUpdateStatus,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(require_permission(Permission.INCIDENT_RESOLVE))],
+):
+    """Close a resolved incident."""
+    stmt = (
+        select(Incident)
+        .options(selectinload(Incident.reported_by_user))
+        .where(Incident.id == incident_id, Incident.is_deleted == False)
+    )
+    result = await db.execute(stmt)
+    incident = result.scalar_one_or_none()
+
+    if not incident:
+        raise NotFoundException("Incident", incident_id)
+
+    _validate_transition(incident.status, "CLOSED")
+
+    incident.status = IncidentStatus.CLOSED
+    incident.closed_at = datetime.now(timezone.utc)
+
+    event = IncidentEvent(
+        incident_id=incident.id,
+        event_type="closed",
+        description=body.notes or "Incident closed",
+        created_by=current_user.id,
+    )
+    db.add(event)
+    await db.flush()
+
+    return {"message": "Incident closed"}
 
 
 @router.post("/{incident_id}/events")

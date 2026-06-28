@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_permission, get_current_user
 from app.core.exceptions import ConflictException, NotFoundException
-from app.core.permissions import Permission
+from app.core.permissions import Permission, RoleName
 from app.models import Route, Stop, RouteStop
 
 router = APIRouter()
@@ -115,6 +115,8 @@ async def list_routes(
     )
     if depot_id:
         stmt = stmt.where(Route.depot_id == depot_id)
+    elif current_user.role == RoleName.DEPOT_MANAGER.value:
+        stmt = stmt.where(Route.depot_id == current_user.depot_id)
     if is_active is not None:
         stmt = stmt.where(Route.is_active == is_active)
 

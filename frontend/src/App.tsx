@@ -14,12 +14,14 @@ import { IncidentsPage } from "@/features/incidents/IncidentsPage"
 import { NoticesPage } from "@/features/notices/NoticesPage"
 import { UsersPage } from "@/features/users/UsersPage"
 import { AVLSPage } from "@/features/avls/AVLSPage"
+import { HistoryPage } from "@/features/avls/HistoryPage"
 import { AnalyticsPage } from "@/features/analytics/AnalyticsPage"
 import { CopilotPage } from "@/features/copilot/CopilotPage"
 import { ReportsPage } from "@/features/reports/ReportsPage"
 import { AuditPage } from "@/features/audit/AuditPage"
 import { LeavesPage } from "@/features/leaves/LeavesPage"
 import { SystemHealthPage } from "@/features/system/SystemHealthPage"
+import { RosterPage } from "@/features/duties/RosterPage"
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,6 +60,13 @@ export default function App() {
                           </PermissionGuard>
                         } />
 
+                        {/* AVLS History — requires gps.view */}
+                        <Route path="/avls/history" element={
+                          <PermissionGuard permission="gps.view">
+                            <HistoryPage />
+                          </PermissionGuard>
+                        } />
+
                         {/* Vehicles — requires vehicle.view */}
                         <Route path="/vehicles" element={
                           <PermissionGuard permission="vehicle.view">
@@ -76,6 +85,13 @@ export default function App() {
                         <Route path="/duties" element={
                           <PermissionGuard permission="duty.view">
                             <DutiesPage />
+                          </PermissionGuard>
+                        } />
+
+                        {/* Roster — requires duty.view */}
+                        <Route path="/roster" element={
+                          <PermissionGuard permission="duty.view">
+                            <RosterPage />
                           </PermissionGuard>
                         } />
 

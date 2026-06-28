@@ -116,9 +116,31 @@ def _register_routers(app: FastAPI) -> None:
     # System health dashboard
     @app.get("/api/system/health", tags=["System"])
     async def system_health_dashboard():
-        """System health dashboard — database, services, uptime."""
+        """System health dashboard — real probes for database, services, uptime."""
         import psutil
         import time
+        from sqlalchemy import text
+        from app.core.database import async_session_factory
+        from app.core.websocket import gps_manager, notification_manager
+
+        # Probe database connectivity
+        db_status = "disconnected"
+        try:
+            async with async_session_factory() as session:
+                await session.execute(text("SELECT 1"))
+                db_status = "connected"
+        except Exception:
+            db_status = "disconnected"
+
+        # Real WebSocket connection count
+        ws_connections = gps_manager.connection_count + notification_manager.connection_count
+        ws_status = f"active ({ws_connections} connections)"
+
+        # GPS simulator status
+        from app.services.gps_simulator import gps_simulator
+        simulator_status = "running" if gps_simulator._running else "stopped"
+
+        overall_status = "healthy" if db_status == "connected" else "degraded"
 
         try:
             cpu = psutil.cpu_percent(interval=0.1)
@@ -127,7 +149,7 @@ def _register_routers(app: FastAPI) -> None:
             uptime = time.time() - psutil.boot_time()
 
             return {
-                "status": "healthy",
+                "status": overall_status,
                 "version": settings.APP_VERSION,
                 "environment": settings.APP_ENV,
                 "system": {
@@ -141,20 +163,18 @@ def _register_routers(app: FastAPI) -> None:
                     "uptime_hours": round(uptime / 3600, 1),
                 },
                 "services": {
-                    "database": "connected",
-                    "redis": "connected",
-                    "websocket": "active",
-                    "geofence_engine": "active",
-                    "route_deviation_engine": "active",
+                    "database": db_status,
+                    "websocket": ws_status,
+                    "gps_simulator": simulator_status,
                 },
             }
         except Exception:
             return {
-                "status": "healthy",
+                "status": "degraded",
                 "version": settings.APP_VERSION,
                 "environment": settings.APP_ENV,
                 "system": {"cpu_percent": 0, "memory_percent": 0, "disk_percent": 0},
-                "services": {"database": "connected"},
+                "services": {"database": db_status, "websocket": ws_status},
             }
 
 

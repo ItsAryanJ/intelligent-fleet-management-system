@@ -32,8 +32,8 @@ export function SystemHealthPage() {
   const diskPercent = sys.disk_percent || 0
 
   const SERVICE_ICONS: Record<string, any> = {
-    database: Database, redis: Server, websocket: Wifi,
-    geofence_engine: MapPin, route_deviation_engine: Route,
+    database: Database, websocket: Wifi,
+    gps_simulator: Route,
   }
 
   return (
@@ -111,7 +111,8 @@ export function SystemHealthPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {Object.entries(services).map(([name, status]) => {
             const Icon = SERVICE_ICONS[name] || Server
-            const isActive = status === "connected" || status === "active"
+            const statusStr = String(status)
+            const isActive = statusStr.startsWith("connected") || statusStr.startsWith("active") || statusStr.startsWith("running")
             return (
               <div key={name} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800">
                 <div className={`p-2 rounded-lg ${isActive ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-red-50 dark:bg-red-900/20"}`}>

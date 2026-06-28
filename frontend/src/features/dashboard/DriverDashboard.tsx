@@ -42,17 +42,30 @@ export function DriverDashboard() {
     onError: () => { toast({ variant: "error", title: "Failed", description: "Could not acknowledge duty." }) },
   })
 
-  // Panic button (creates a P1 incident)
+  // Panic button (creates a P1 incident via dedicated panic endpoint with geolocation)
   const panicMutation = useMutation({
-    mutationFn: async () => api.post("/incidents", {
-      incident_type: "SECURITY",
-      severity: "P1",
-      title: `PANIC — Driver ${user?.first_name} ${user?.last_name}`,
-      description: "Emergency panic button activated by driver.",
-      vehicle_id: myDuties[0]?.vehicle_id || undefined,
-    }),
+    mutationFn: async () => {
+      // Attempt to capture real GPS coordinates
+      let latitude: number | undefined
+      let longitude: number | undefined
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) =>
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000, enableHighAccuracy: true })
+        )
+        latitude = pos.coords.latitude
+        longitude = pos.coords.longitude
+      } catch {
+        // Geolocation unavailable — send without coordinates
+      }
+      return api.post("/incidents/panic", null, {
+        params: { latitude, longitude },
+      })
+    },
     onSuccess: () => {
       toast({ variant: "warning", title: "Emergency Reported", description: "Control Center has been alerted." })
+    },
+    onError: () => {
+      toast({ variant: "error", title: "Panic Failed", description: "Could not alert Control Center. Please call emergency services directly." })
     },
   })
 
