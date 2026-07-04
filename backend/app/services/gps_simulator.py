@@ -10,6 +10,7 @@ Produces:
   - Continuous Vehicle table updates (last_latitude, last_longitude, etc.)
   - Continuous GPSPing inserts (historical telemetry)
   - WebSocket broadcasts via gps_manager for live frontend updates
+
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ from datetime import datetime, timezone, timedelta
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, update, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -63,6 +64,10 @@ BRAKING_ZONE_THRESHOLD = 0.70
 
 # Earth radius in metres for haversine
 EARTH_RADIUS_M = 6_371_000
+
+# Deadlock retry configuration
+MAX_DEADLOCK_RETRIES = 3
+DEADLOCK_RETRY_BASE_DELAY = 0.2  # seconds
 
 
 # =============================================================================
@@ -173,6 +178,12 @@ def interpolate_position(wp_a: Waypoint, wp_b: Waypoint, t: float) -> tuple[floa
     return lat, lon
 
 
+def _is_deadlock_error(exc: Exception) -> bool:
+    """Check if an exception is a PostgreSQL deadlock error (40P01)."""
+    exc_str = str(exc).lower()
+    return "deadlock" in exc_str or "40p01" in exc_str
+
+
 # =============================================================================
 # GPS Simulator
 # =============================================================================
@@ -203,7 +214,12 @@ class GPSSimulator:
             logger.info("GPS Simulator is disabled via config.")
             return
 
-        logger.info("🚦 GPS Simulator starting...")
+        # Prevent duplicate simulators in the same process
+        if self._running:
+            logger.warning("GPS Simulator already running — skipping duplicate start.")
+            return
+
+        logger.info("GPS Simulator starting...")
         await self._load_routes()
         await self._load_vehicles()
 
@@ -214,7 +230,7 @@ class GPSSimulator:
         self._running = True
         self._task = asyncio.create_task(self._main_loop(), name="gps-simulator")
         logger.info(
-            "📡 GPS Simulator running — %d vehicles, %d routes, interval=%ss",
+            "GPS Simulator running — %d vehicles, %d routes, interval=%ss",
             len(self._vehicle_states),
             len(self._route_cache),
             self._tick_interval,
@@ -229,7 +245,7 @@ class GPSSimulator:
                 await self._task
             except asyncio.CancelledError:
                 pass
-        logger.info("📡 GPS Simulator stopped.")
+        logger.info("GPS Simulator stopped.")
 
     # ── Data Loading ────────────────────────────────────────────────────
 
@@ -279,7 +295,7 @@ class GPSSimulator:
                 )
                 self._route_cache[route.id] = cached
 
-        logger.info("🛤️  Loaded %d routes into cache.", len(self._route_cache))
+        logger.info("Loaded %d routes into cache.", len(self._route_cache))
 
     async def _load_vehicles(self) -> None:
         """Load active vehicles, assign routes, create initial states."""
@@ -334,6 +350,9 @@ class GPSSimulator:
             route_vehicle_groups[cached_route.route_id].append(vehicle)
 
         # Create vehicle states with staggered offsets
+        # IMPORTANT: Sort by vehicle_id to ensure deterministic lock ordering
+        all_states: list[VehicleState] = []
+
         for route_id, group_vehicles in route_vehicle_groups.items():
             cached_route = self._route_cache[route_id]
             total_segments = len(cached_route.waypoints) - 1
@@ -385,37 +404,23 @@ class GPSSimulator:
                     latitude=lat,
                     longitude=lon,
                 )
-                self._vehicle_states.append(state)
+                all_states.append(state)
+
+        # Sort by vehicle_id for deterministic lock ordering (deadlock prevention)
+        all_states.sort(key=lambda s: str(s.vehicle_id))
+        self._vehicle_states = all_states
 
         logger.info(
-            "🚆 Initialized %d vehicle states across %d routes.",
+            "Initialized %d vehicle states across %d routes (sorted by ID for lock ordering).",
             len(self._vehicle_states),
             len(route_vehicle_groups),
         )
-        logger.info("===== VEHICLE STATES =====")
 
-        seen = set()
-
-        for s in self._vehicle_states:
-            logger.info(
-                "%s | %s | %s",
-                s.registration_no,
-                s.vehicle_id,
-                s.assigned_route.route_name if s.assigned_route else None,
-            )
-
-            if s.vehicle_id in seen:
-                logger.error(
-                    "DUPLICATE VEHICLE STATE: %s",
-                    s.registration_no,
-                )
-
-            seen.add(s.vehicle_id)
     # ── Main Simulation Loop ────────────────────────────────────────────
 
     async def _main_loop(self) -> None:
         """Background loop — tick all vehicles and persist/broadcast."""
-        logger.info("🔄 Simulation loop started (interval=%.1fs)", self._tick_interval)
+        logger.info("Simulation loop started (interval=%.1fs)", self._tick_interval)
 
         while self._running:
             try:
@@ -627,88 +632,123 @@ class GPSSimulator:
         """
         Batch-update Vehicle rows, insert GPSPing records, and
         broadcast updates over WebSocket — all in one DB transaction.
+
+        Deadlock prevention strategy:
+        1. Vehicle states are pre-sorted by vehicle_id (deterministic lock order).
+        2. All updates use a single short-lived transaction.
+        3. Transient deadlocks are caught and retried with exponential backoff.
         """
         now = datetime.now(timezone.utc)
 
         # Prepare broadcast payloads (built before DB to minimize lock time)
         broadcast_payloads: list[dict] = []
+        for state in self._vehicle_states:
+            if state.assigned_route is None:
+                continue
+            broadcast_payloads.append({
+                "type": "gps_update",
+                "vehicle_id": str(state.vehicle_id),
+                "registration_no": state.registration_no,
+                "latitude": round(state.latitude, 6),
+                "longitude": round(state.longitude, 6),
+                "speed": round(state.current_speed, 1),
+                "heading": round(state.heading, 1),
+                "timestamp": now.isoformat(),
+            })
 
-        try:
-            async with async_session_factory() as session:
-                for state in self._vehicle_states:
-                    if state.assigned_route is None:
-                        continue
+        # ── Database writes with deadlock retry ─────────────────────────
+        for attempt in range(1, MAX_DEADLOCK_RETRIES + 1):
+            try:
+                async with async_session_factory() as session:
+                    # Use a single BEGIN block to minimize lock duration
+                    async with session.begin():
+                        # Batch: update Vehicle positions
+                        for state in self._vehicle_states:
+                            if state.assigned_route is None:
+                                continue
 
-                    # Update Vehicle row
-                    await session.execute(
-                        update(Vehicle)
-                        .where(Vehicle.id == state.vehicle_id)
-                        .values(
-                            last_latitude=round(state.latitude, 6),
-                            last_longitude=round(state.longitude, 6),
-                            last_speed=round(state.current_speed, 1),
-                            last_heading=round(state.heading, 1),
-                            last_gps_time=now,
-                            ignition_on=True,
-                        )
-                    )
-
-                    # Update VehicleHealth: fuel depletion & odometer
-                    distance_km = (state.current_speed / 3.6) * self._tick_interval / 1000
-                    if distance_km > 0:
-                        fuel_decrement = distance_km * 0.08  # ~8L/100km → 0.08% per km
-                        await session.execute(
-                            update(VehicleHealth)
-                            .where(VehicleHealth.vehicle_id == state.vehicle_id)
-                            .values(
-                                fuel_level=func.greatest(
-                                    VehicleHealth.fuel_level - fuel_decrement, 5.0
-                                ),
-                                odometer=VehicleHealth.odometer + distance_km,
+                            await session.execute(
+                                update(Vehicle)
+                                .where(Vehicle.id == state.vehicle_id)
+                                .values(
+                                    last_latitude=round(state.latitude, 6),
+                                    last_longitude=round(state.longitude, 6),
+                                    last_speed=round(state.current_speed, 1),
+                                    last_heading=round(state.heading, 1),
+                                    last_gps_time=now,
+                                    ignition_on=True,
+                                )
                             )
-                        )
 
-                    # Insert GPSPing
-                    ping = GPSPing(
-                        id=uuid.uuid4(),
-                        vehicle_id=state.vehicle_id,
-                        latitude=round(state.latitude, 6),
-                        longitude=round(state.longitude, 6),
-                        speed=round(state.current_speed, 1),
-                        heading=round(state.heading, 1),
-                        ignition_on=True,
-                        timestamp=now,
+                        # Batch: update VehicleHealth (fuel + odometer)
+                        for state in self._vehicle_states:
+                            if state.assigned_route is None:
+                                continue
+                            distance_km = (state.current_speed / 3.6) * self._tick_interval / 1000
+                            if distance_km > 0:
+                                fuel_decrement = distance_km * 0.08
+                                await session.execute(
+                                    update(VehicleHealth)
+                                    .where(VehicleHealth.vehicle_id == state.vehicle_id)
+                                    .values(
+                                        fuel_level=func.greatest(
+                                            VehicleHealth.fuel_level - fuel_decrement, 5.0
+                                        ),
+                                        odometer=VehicleHealth.odometer + distance_km,
+                                    )
+                                )
+
+                        # Batch: insert GPSPings
+                        for state in self._vehicle_states:
+                            if state.assigned_route is None:
+                                continue
+                            session.add(GPSPing(
+                                id=uuid.uuid4(),
+                                vehicle_id=state.vehicle_id,
+                                latitude=round(state.latitude, 6),
+                                longitude=round(state.longitude, 6),
+                                speed=round(state.current_speed, 1),
+                                heading=round(state.heading, 1),
+                                ignition_on=True,
+                                timestamp=now,
+                            ))
+
+                    # session.begin() context manager auto-commits on success
+                # Success — break out of retry loop
+                break
+
+            except Exception as exc:
+                if _is_deadlock_error(exc) and attempt < MAX_DEADLOCK_RETRIES:
+                    delay = DEADLOCK_RETRY_BASE_DELAY * (2 ** (attempt - 1))
+                    logger.warning(
+                        "Deadlock detected (attempt %d/%d) — retrying in %.1fs",
+                        attempt, MAX_DEADLOCK_RETRIES, delay,
                     )
-                    session.add(ping)
+                    await asyncio.sleep(delay)
+                    continue
+                else:
+                    if _is_deadlock_error(exc):
+                        logger.error(
+                            "Deadlock persisted after %d retries — skipping this tick",
+                            MAX_DEADLOCK_RETRIES,
+                        )
+                    else:
+                        logger.exception("Database persistence error — will retry next tick")
+                    return
 
-                    # Build broadcast payload
-                    broadcast_payloads.append({
-                        "type": "gps_update",
-                        "vehicle_id": str(state.vehicle_id),
-                        "registration_no": state.registration_no,
-                        "latitude": round(state.latitude, 6),
-                        "longitude": round(state.longitude, 6),
-                        "speed": round(state.current_speed, 1),
-                        "heading": round(state.heading, 1),
-                        "timestamp": now.isoformat(),
-                    })
-
-                await session.commit()
-
-        except Exception:
-            logger.exception("Database persistence error — will retry next tick")
-            return
-
-        # Broadcast via WebSocket (outside DB transaction)
+        # ── Broadcast via WebSocket (outside DB transaction) ────────────
         if gps_manager.connection_count > 0:
             for payload in broadcast_payloads:
                 try:
                     await gps_manager.broadcast(payload)
                 except Exception:
-                    logger.exception("WebSocket broadcast error for vehicle %s", payload.get("vehicle_id"))
+                    logger.exception(
+                        "WebSocket broadcast error for vehicle %s",
+                        payload.get("vehicle_id"),
+                    )
 
             logger.debug(
-                "📡 Broadcast %d vehicle updates to %d clients",
+                "Broadcast %d vehicle updates to %d clients",
                 len(broadcast_payloads),
                 gps_manager.connection_count,
             )

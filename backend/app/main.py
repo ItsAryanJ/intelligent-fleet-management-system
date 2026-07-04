@@ -2,6 +2,8 @@
 NCRTC Intelligent Fleet Management Platform — FastAPI Application Factory.
 """
 
+import logging
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -12,6 +14,13 @@ from app.core.database import init_db, close_db
 from app.core.middleware import setup_middleware, setup_exception_handlers
 
 settings = get_settings()
+
+# Configure root logger so module-level loggers (e.g., gps_simulator) output to stdout
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 
 @asynccontextmanager
