@@ -24,7 +24,7 @@ from datetime import datetime, timezone, timedelta
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -32,7 +32,7 @@ from app.core.config import get_settings
 from app.core.database import async_session_factory
 from app.core.websocket import gps_manager
 from app.models import (
-    Vehicle, VehicleStatus, Route, RouteStop, Stop, Duty, GPSPing,
+    Vehicle, VehicleHealth, VehicleStatus, Route, RouteStop, Stop, Duty, GPSPing,
 )
 
 logger = logging.getLogger("gps_simulator")
@@ -392,7 +392,25 @@ class GPSSimulator:
             len(self._vehicle_states),
             len(route_vehicle_groups),
         )
+        logger.info("===== VEHICLE STATES =====")
 
+        seen = set()
+
+        for s in self._vehicle_states:
+            logger.info(
+                "%s | %s | %s",
+                s.registration_no,
+                s.vehicle_id,
+                s.assigned_route.route_name if s.assigned_route else None,
+            )
+
+            if s.vehicle_id in seen:
+                logger.error(
+                    "DUPLICATE VEHICLE STATE: %s",
+                    s.registration_no,
+                )
+
+            seen.add(s.vehicle_id)
     # ── Main Simulation Loop ────────────────────────────────────────────
 
     async def _main_loop(self) -> None:
@@ -634,6 +652,21 @@ class GPSSimulator:
                             ignition_on=True,
                         )
                     )
+
+                    # Update VehicleHealth: fuel depletion & odometer
+                    distance_km = (state.current_speed / 3.6) * self._tick_interval / 1000
+                    if distance_km > 0:
+                        fuel_decrement = distance_km * 0.08  # ~8L/100km → 0.08% per km
+                        await session.execute(
+                            update(VehicleHealth)
+                            .where(VehicleHealth.vehicle_id == state.vehicle_id)
+                            .values(
+                                fuel_level=func.greatest(
+                                    VehicleHealth.fuel_level - fuel_decrement, 5.0
+                                ),
+                                odometer=VehicleHealth.odometer + distance_km,
+                            )
+                        )
 
                     # Insert GPSPing
                     ping = GPSPing(

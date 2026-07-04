@@ -56,10 +56,3 @@ backend/reports/generated/*
 # Logs
 *.log
 logs/
-
-# Evaluation documents
-eval_report.txt
-NCRTC_BMS_Evaluation_v2.pdf
-
-# Documentation screenshots
-SCREENSHOTS.md

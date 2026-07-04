@@ -3,7 +3,7 @@ Geofence & Route Deviation Engine — Detects depot entry/exit, unauthorized pre
 and route deviation. Generates incidents, notifications, and audit entries.
 """
 
-import math
+from app.core.utils import haversine_km
 from typing import Annotated, Optional
 from uuid import UUID
 from datetime import datetime, timezone
@@ -27,14 +27,9 @@ from app.models import (
 router = APIRouter()
 
 
-# ── Haversine distance (meters) ──────────────────────────────────────────
+# ── Haversine distance (meters) — delegates to shared utility ────────────
 def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    R = 6_371_000  # Earth radius in meters
-    phi1, phi2 = math.radians(lat1), math.radians(lat2)
-    dphi = math.radians(lat2 - lat1)
-    dlambda = math.radians(lon2 - lon1)
-    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
-    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return haversine_km(lat1, lon1, lat2, lon2) * 1000.0
 
 
 # ── Point-in-radius check ───────────────────────────────────────────────

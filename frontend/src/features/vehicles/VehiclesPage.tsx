@@ -13,18 +13,18 @@ import {
 
 const STATUS_COLORS: Record<string, string> = {
   ACTIVE: "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/30",
-  IDLE: "bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/30",
+  INACTIVE: "bg-slate-50 dark:bg-slate-900/20 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800/30",
   MAINTENANCE: "bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800/30",
   BREAKDOWN: "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/30",
-  DECOMMISSIONED: "bg-gray-50 dark:bg-gray-900/20 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-800/30",
+  RETIRED: "bg-gray-50 dark:bg-gray-900/20 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-800/30",
 }
 
 const STATUS_DOTS: Record<string, string> = {
   ACTIVE: "bg-emerald-500",
-  IDLE: "bg-slate-400",
+  INACTIVE: "bg-slate-400",
   MAINTENANCE: "bg-amber-500",
   BREAKDOWN: "bg-red-500",
-  DECOMMISSIONED: "bg-gray-400",
+  RETIRED: "bg-gray-400",
 }
 
 export function VehiclesPage() {
@@ -112,15 +112,14 @@ export function VehiclesPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {["ALL", "ACTIVE", "MAINTENANCE", "BREAKDOWN", "IDLE"].map((status) => (
+          {["ALL", "ACTIVE", "MAINTENANCE", "BREAKDOWN", "INACTIVE"].map((status) => (
             <button
               key={status}
               onClick={() => { setStatusFilter(status); setPage(1) }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                statusFilter === status
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${statusFilter === status
                   ? "bg-brand-500 text-white"
                   : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700"
-              }`}
+                }`}
             >
               {status === "ALL" ? "All" : status.charAt(0) + status.slice(1).toLowerCase()}
             </button>
@@ -176,11 +175,19 @@ export function VehiclesPage() {
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                   <Fuel className="w-3 h-3" />
-                  <span>{vehicle.fuel_level ? `${vehicle.fuel_level}%` : "—"}</span>
+                  <span>
+                    {vehicle.fuel_level != null
+                      ? `${Math.round(vehicle.fuel_level)}%`
+                      : "—"}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
                   <Activity className="w-3 h-3" />
-                  <span>{vehicle.health_score ? `${vehicle.health_score}%` : "—"}</span>
+                  <span>
+                    {vehicle.health_score != null
+                      ? `${Math.round(vehicle.health_score)}%`
+                      : "—"}
+                  </span>
                 </div>
               </div>
 
@@ -189,15 +196,16 @@ export function VehiclesPage() {
                 <div className="flex items-center justify-between mb-1">
                   <span className="text-[10px] text-slate-500">Health</span>
                   <span className="text-[10px] font-medium text-slate-700 dark:text-slate-300">
-                    {vehicle.health_score ? `${vehicle.health_score}%` : "—"}
+                    {vehicle.health_score != null
+                      ? `${Math.round(vehicle.health_score)}%`
+                      : "—"}
                   </span>
                 </div>
                 <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all ${
-                      (vehicle.health_score || 0) > 80 ? "bg-emerald-500" :
-                      (vehicle.health_score || 0) > 50 ? "bg-amber-500" : "bg-red-500"
-                    }`}
+                    className={`h-full rounded-full transition-all ${(vehicle.health_score || 0) > 80 ? "bg-emerald-500" :
+                        (vehicle.health_score || 0) > 50 ? "bg-amber-500" : "bg-red-500"
+                      }`}
                     style={{ width: `${vehicle.health_score || 0}%` }}
                   />
                 </div>

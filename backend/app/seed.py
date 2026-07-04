@@ -1,10 +1,12 @@
 """
 NCRTC Demo Data Seed Script — Generates realistic operational data.
 Run: python -m app.seed
+Re-generate GPS only: python -m app.seed --reseed-gps
 """
 
 import asyncio
 import random
+import sys
 import uuid
 import math
 from datetime import datetime, timezone, timedelta, date, time
@@ -16,11 +18,11 @@ from sqlalchemy.orm import sessionmaker
 from app.core.config import get_settings
 from app.core.security import hash_password
 from app.models import (
-    Base, Depot, Role, User, Vehicle, Route, Stop, RouteStop, Duty,
-    Incident, Notice, GPSPing, Notification, LeaveRequest, Report, AuditLog,
+    Base, Depot, Role, User, Vehicle, VehicleHealth, Route, Stop, RouteStop, Duty,
+    Incident, IncidentEvent, Notice, GPSPing, Notification, LeaveRequest, Report, AuditLog,
     VehicleType, VehicleStatus, IncidentType, IncidentSeverity, IncidentStatus,
     DutyStatus, ShiftType, NotificationType, LeaveStatus, ReportType, ReportFormat,
-    NoticePriority, NoticeTargetType, StopType,
+    NoticePriority, NoticeTargetType, StopType, MaintenanceStatus,
 )
 
 settings = get_settings()
@@ -128,6 +130,7 @@ ROLE_DISTRIBUTION = {
 
 async def seed_database():
     """Generate complete realistic NCRTC demo data."""
+    random.seed(42)  # Deterministic for reproducible tests
     engine = create_async_engine(settings.database_url, echo=False)
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -236,7 +239,7 @@ async def seed_database():
                 chassis_no=f"CHS-{100000 + i}",
                 engine_no=f"ENG-{200000 + i}",
                 insurance_expiry=date.today() + timedelta(days=random.randint(180, 900)),
-fitness_expiry=date.today() + timedelta(days=random.randint(90, 540)),
+                fitness_expiry=date.today() + timedelta(days=random.randint(90, 540)),
                 last_latitude=depot.latitude + random.uniform(-0.02, 0.02),
                 last_longitude=depot.longitude + random.uniform(-0.02, 0.02),
                 last_speed=random.uniform(0, 80),
@@ -248,6 +251,30 @@ fitness_expiry=date.today() + timedelta(days=random.randint(90, 540)),
             vehicles.append(v)
         await db.flush()
         print(f"   ✅ {len(vehicles)} vehicles created")
+
+        # ── 4b. Vehicle Health Records ────────────────────────────────
+        print("🔧 Creating vehicle health records...")
+        for v in vehicles:
+            maint_status = random.choice(list(MaintenanceStatus))
+            last_service = date.today() - timedelta(days=random.randint(10, 180))
+            next_service = last_service + timedelta(days=random.randint(30, 180))
+            vh = VehicleHealth(
+                vehicle_id=v.id,
+                fuel_level=round(random.uniform(30, 100), 1),
+                odometer=round(random.uniform(1000, 80000), 1),
+                engine_hours=round(random.uniform(100, 5000), 1),
+                last_service_date=last_service,
+                next_service_date=next_service,
+                maintenance_status=maint_status,
+                health_score=round(random.uniform(55, 100), 1),
+                tire_pressure_ok=random.random() > 0.1,
+                engine_temp_ok=random.random() > 0.05,
+                battery_voltage=round(random.uniform(11.8, 13.2), 1),
+                brake_status_ok=random.random() > 0.08,
+            )
+            db.add(vh)
+        await db.flush()
+        print(f"   ✅ {len(vehicles)} vehicle health records created")
 
         # ── 5. Stops (station catalog) ───────────────────────────────
         print("🛤️ Creating stops...")
@@ -351,38 +378,131 @@ fitness_expiry=date.today() + timedelta(days=random.randint(90, 540)),
         await db.flush()
         print(f"   ✅ {len(duties)} duties created")
 
-        # ── 8. GPS Pings (reduced to ~6000 for faster seeding) ───────
-        print("📡 Generating GPS pings...")
+        # ── 8. GPS Pings — Route-Following Trajectories ────────────
+        print("📡 Generating route-following GPS pings...")
         ping_count = 0
-        for v in vehicles:
-            lat, lon = v.last_latitude or 28.7, v.last_longitude or 77.5
-            for hour_offset in range(120):
-                ts = datetime.now(timezone.utc) - timedelta(hours=hour_offset)
-                lat += random.uniform(-0.001, 0.001)
-                lon += random.uniform(-0.001, 0.001)
-                speed = random.uniform(0, 80) if random.random() > 0.2 else 0
-                ping = GPSPing(
-                    vehicle_id=v.id, latitude=lat, longitude=lon,
-                    speed=round(speed, 1), heading=random.uniform(0, 360),
-                    ignition_on=speed > 0, timestamp=ts,
-                )
-                db.add(ping)
-                ping_count += 1
-                if ping_count % 5000 == 0:
-                    await db.flush()
-                    print(f"   📡 {ping_count:,} pings...")
-        await db.flush()
-        print(f"   ✅ {ping_count:,} GPS pings created")
 
-        # ── 9. Incidents ─────────────────────────────────────────────
+        # Build ordered waypoints from actual NCRTC stop coordinates
+        all_stop_names = list(STOP_COORDINATES.keys())
+        all_waypoints = [(lat, lon) for lat, lon in STOP_COORDINATES.values()]
+
+        # GPS jitter: ±0.00005° ≈ ±5 metres (realistic consumer GPS noise)
+        GPS_JITTER = 0.00005
+
+        def _interpolate_route(waypoints, num_points):
+            """Interpolate between waypoints to create smooth path."""
+            result = []
+            if len(waypoints) < 2:
+                return waypoints * num_points
+            # Distribute points across segments
+            segment_count = len(waypoints) - 1
+            points_per_seg = max(1, num_points // segment_count)
+            for i in range(segment_count):
+                lat1, lon1 = waypoints[i]
+                lat2, lon2 = waypoints[i + 1]
+                for j in range(points_per_seg):
+                    t = j / points_per_seg
+                    lat = lat1 + (lat2 - lat1) * t + random.uniform(-GPS_JITTER, GPS_JITTER)
+                    lon = lon1 + (lon2 - lon1) * t + random.uniform(-GPS_JITTER, GPS_JITTER)
+                    result.append((round(lat, 6), round(lon, 6)))
+            result.append(waypoints[-1])  # End at last waypoint
+            return result
+
+        for v_idx, v in enumerate(vehicles):
+            # Assign each vehicle a route-like trajectory from route data
+            route_info = ROUTE_DATA[v_idx % len(ROUTE_DATA)]
+            route_waypoints = []
+            for stop_name in route_info["stops"]:
+                if stop_name in STOP_COORDINATES:
+                    route_waypoints.append(STOP_COORDINATES[stop_name])
+            if len(route_waypoints) < 2:
+                route_waypoints = all_waypoints[:4]  # fallback
+
+            # Generate 3 days of trips (forward morning + stationary gap + return evening)
+            for day_offset in range(3):
+                base_time = datetime.now(timezone.utc) - timedelta(days=day_offset)
+
+                # ── Forward trip (morning 06:00 → ~07:20) ──
+                forward_path = _interpolate_route(route_waypoints, 40)
+                trip_start = base_time.replace(hour=6, minute=0, second=0, microsecond=0)
+                for p_idx, (lat, lon) in enumerate(forward_path):
+                    ts = trip_start + timedelta(seconds=p_idx * 120)  # 2-min intervals
+                    speed = round(random.uniform(30, 80), 1) if p_idx > 0 else 0
+                    if p_idx > 0:
+                        prev_lat, prev_lon = forward_path[p_idx - 1]
+                        heading = math.degrees(math.atan2(lon - prev_lon, lat - prev_lat)) % 360
+                    else:
+                        heading = random.uniform(0, 360)
+                    ping = GPSPing(
+                        vehicle_id=v.id, latitude=lat, longitude=lon,
+                        speed=speed, heading=round(heading, 1),
+                        ignition_on=True, timestamp=ts,
+                    )
+                    db.add(ping)
+                    ping_count += 1
+
+                # ── Stationary gap at terminus (vehicle parked ~08:00–15:30) ──
+                # Add a few idle pings at the last waypoint so there's no jump
+                terminus_lat, terminus_lon = route_waypoints[-1]
+                gap_start = trip_start + timedelta(seconds=len(forward_path) * 120 + 60)
+                for g in range(5):
+                    ts = gap_start + timedelta(minutes=g * 90)  # every 90 min
+                    ping = GPSPing(
+                        vehicle_id=v.id,
+                        latitude=round(terminus_lat + random.uniform(-GPS_JITTER, GPS_JITTER), 6),
+                        longitude=round(terminus_lon + random.uniform(-GPS_JITTER, GPS_JITTER), 6),
+                        speed=0, heading=0, ignition_on=False, timestamp=ts,
+                    )
+                    db.add(ping)
+                    ping_count += 1
+
+                # ── Return trip (evening 16:00 → ~17:20) ──
+                return_path = _interpolate_route(list(reversed(route_waypoints)), 40)
+                trip_start = base_time.replace(hour=16, minute=0, second=0, microsecond=0)
+                for p_idx, (lat, lon) in enumerate(return_path):
+                    ts = trip_start + timedelta(seconds=p_idx * 120)
+                    speed = round(random.uniform(25, 75), 1) if p_idx > 0 else 0
+                    if p_idx > 0:
+                        prev_lat, prev_lon = return_path[p_idx - 1]
+                        heading = math.degrees(math.atan2(lon - prev_lon, lat - prev_lat)) % 360
+                    else:
+                        heading = random.uniform(0, 360)
+                    ping = GPSPing(
+                        vehicle_id=v.id, latitude=lat, longitude=lon,
+                        speed=speed, heading=round(heading, 1),
+                        ignition_on=True, timestamp=ts,
+                    )
+                    db.add(ping)
+                    ping_count += 1
+
+            if ping_count % 3000 == 0:
+                await db.flush()
+                print(f"   📡 {ping_count:,} pings...")
+
+        await db.flush()
+        print(f"   ✅ {ping_count:,} route-following GPS pings created")
+
+        # ── 9. Incidents + Timeline Events ─────────────────────────
         print("⚠️ Creating incidents...")
         incidents = []
+        # Status progression for timeline events
+        STATUS_TIMELINE = {
+            IncidentStatus.OPEN: ["created"],
+            IncidentStatus.ACKNOWLEDGED: ["created", "acknowledged"],
+            IncidentStatus.ASSIGNED: ["created", "acknowledged", "assigned"],
+            IncidentStatus.IN_PROGRESS: ["created", "acknowledged", "assigned", "in_progress"],
+            IncidentStatus.RESOLVED: ["created", "acknowledged", "assigned", "in_progress", "resolved"],
+            IncidentStatus.CLOSED: ["created", "acknowledged", "assigned", "in_progress", "resolved", "closed"],
+        }
         for i in range(50):
             title, inc_type, severity = random.choice(INCIDENT_TYPES_DATA)
             vehicle = random.choice(vehicles)
             created = datetime.now(timezone.utc) - timedelta(days=random.randint(0, 30), hours=random.randint(0, 23))
             status = random.choice(list(IncidentStatus))
             sla_hours = {"P1": 1, "P2": 4, "P3": 24}
+            resolved_at = None
+            if status in [IncidentStatus.RESOLVED, IncidentStatus.CLOSED]:
+                resolved_at = created + timedelta(hours=random.randint(1, 48))
             inc = Incident(
                 incident_no=f"INC-{created.strftime('%Y%m%d')}-{str(i + 1).zfill(3)}",
                 title=title, description=f"Detailed description of: {title}",
@@ -392,12 +512,38 @@ fitness_expiry=date.today() + timedelta(days=random.randint(90, 540)),
                 longitude=77.5 + random.uniform(-0.3, 0.3),
                 sla_deadline=created + timedelta(hours=sla_hours.get(severity.value, 24)),
                 sla_breached=random.random() > 0.8,
+                resolved_at=resolved_at,
                 created_by=str(admin_user.id),
             )
             db.add(inc)
-            incidents.append(inc)
+            incidents.append((inc, status, created))
         await db.flush()
-        print(f"   ✅ {len(incidents)} incidents created")
+
+        # Create timeline events for each incident matching its status
+        event_count = 0
+        for inc, status, created in incidents:
+            events = STATUS_TIMELINE.get(status, ["created"])
+            for ev_idx, event_type in enumerate(events):
+                event_time = created + timedelta(minutes=ev_idx * random.randint(10, 120))
+                descriptions = {
+                    "created": f"Incident created: {inc.title}",
+                    "acknowledged": "Incident acknowledged by control room",
+                    "assigned": "Incident assigned to field team",
+                    "in_progress": "Field team working on resolution",
+                    "resolved": "Issue resolved and verified",
+                    "closed": "Incident closed after verification",
+                }
+                ev = IncidentEvent(
+                    incident_id=inc.id,
+                    event_type=event_type,
+                    description=descriptions.get(event_type, event_type),
+                    created_by=admin_user.id,
+                    created_at=event_time,
+                )
+                db.add(ev)
+                event_count += 1
+        await db.flush()
+        print(f"   ✅ {len(incidents)} incidents, {event_count} timeline events created")
 
         # ── 10. Notices ──────────────────────────────────────────────
         print("📢 Creating notices...")
@@ -491,5 +637,126 @@ fitness_expiry=date.today() + timedelta(days=random.randint(90, 540)),
     await engine.dispose()
 
 
+async def reseed_gps_data():
+    """Clear all GPS pings and regenerate clean route-following trajectories.
+    
+    This can be run independently of the main seed to fix GPS data issues
+    without dropping and re-creating the entire database.
+    """
+    random.seed(42)
+    engine = create_async_engine(settings.database_url, echo=False)
+    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    GPS_JITTER = 0.00005  # ±5 metres
+
+    def _interpolate_route(waypoints, num_points):
+        result = []
+        if len(waypoints) < 2:
+            return waypoints * num_points
+        segment_count = len(waypoints) - 1
+        points_per_seg = max(1, num_points // segment_count)
+        for i in range(segment_count):
+            lat1, lon1 = waypoints[i]
+            lat2, lon2 = waypoints[i + 1]
+            for j in range(points_per_seg):
+                t = j / points_per_seg
+                lat = lat1 + (lat2 - lat1) * t + random.uniform(-GPS_JITTER, GPS_JITTER)
+                lon = lon1 + (lon2 - lon1) * t + random.uniform(-GPS_JITTER, GPS_JITTER)
+                result.append((round(lat, 6), round(lon, 6)))
+        result.append(waypoints[-1])
+        return result
+
+    async with async_session() as db:
+        # ── Step 1: Delete all existing GPS pings ─────────────────────
+        from sqlalchemy import delete, text
+        result = await db.execute(text("DELETE FROM gps_pings"))
+        deleted = result.rowcount
+        print(f"[DELETE] Removed {deleted:,} old GPS pings")
+        await db.flush()
+
+        # ── Step 2: Load vehicles from DB ─────────────────────────────
+        vehicles = (await db.execute(select(Vehicle).where(Vehicle.is_deleted == False).order_by(Vehicle.registration_no))).scalars().all()
+        if not vehicles:
+            print("[ERROR] No vehicles found -- run full seed first.")
+            await engine.dispose()
+            return
+        print(f"[VEHICLES] Found {len(vehicles)} vehicles")
+
+        # ── Step 3: Generate fresh GPS pings ──────────────────────────
+        ping_count = 0
+        for v_idx, v in enumerate(vehicles):
+            route_info = ROUTE_DATA[v_idx % len(ROUTE_DATA)]
+            route_waypoints = []
+            for stop_name in route_info["stops"]:
+                if stop_name in STOP_COORDINATES:
+                    route_waypoints.append(STOP_COORDINATES[stop_name])
+            if len(route_waypoints) < 2:
+                route_waypoints = list(STOP_COORDINATES.values())[:4]
+
+            for day_offset in range(3):
+                base_time = datetime.now(timezone.utc) - timedelta(days=day_offset)
+
+                # ── Forward trip (morning 06:00 → ~07:20) ──
+                forward_path = _interpolate_route(route_waypoints, 40)
+                trip_start = base_time.replace(hour=6, minute=0, second=0, microsecond=0)
+                for p_idx, (lat, lon) in enumerate(forward_path):
+                    ts = trip_start + timedelta(seconds=p_idx * 120)
+                    speed = round(random.uniform(30, 80), 1) if p_idx > 0 else 0
+                    if p_idx > 0:
+                        prev_lat, prev_lon = forward_path[p_idx - 1]
+                        heading = math.degrees(math.atan2(lon - prev_lon, lat - prev_lat)) % 360
+                    else:
+                        heading = random.uniform(0, 360)
+                    db.add(GPSPing(
+                        vehicle_id=v.id, latitude=lat, longitude=lon,
+                        speed=speed, heading=round(heading, 1),
+                        ignition_on=True, timestamp=ts,
+                    ))
+                    ping_count += 1
+
+                # ── Stationary gap at terminus ──
+                terminus_lat, terminus_lon = route_waypoints[-1]
+                gap_start = trip_start + timedelta(seconds=len(forward_path) * 120 + 60)
+                for g in range(5):
+                    ts = gap_start + timedelta(minutes=g * 90)
+                    db.add(GPSPing(
+                        vehicle_id=v.id,
+                        latitude=round(terminus_lat + random.uniform(-GPS_JITTER, GPS_JITTER), 6),
+                        longitude=round(terminus_lon + random.uniform(-GPS_JITTER, GPS_JITTER), 6),
+                        speed=0, heading=0, ignition_on=False, timestamp=ts,
+                    ))
+                    ping_count += 1
+
+                # ── Return trip (evening 16:00 → ~17:20) ──
+                return_path = _interpolate_route(list(reversed(route_waypoints)), 40)
+                trip_start = base_time.replace(hour=16, minute=0, second=0, microsecond=0)
+                for p_idx, (lat, lon) in enumerate(return_path):
+                    ts = trip_start + timedelta(seconds=p_idx * 120)
+                    speed = round(random.uniform(25, 75), 1) if p_idx > 0 else 0
+                    if p_idx > 0:
+                        prev_lat, prev_lon = return_path[p_idx - 1]
+                        heading = math.degrees(math.atan2(lon - prev_lon, lat - prev_lat)) % 360
+                    else:
+                        heading = random.uniform(0, 360)
+                    db.add(GPSPing(
+                        vehicle_id=v.id, latitude=lat, longitude=lon,
+                        speed=speed, heading=round(heading, 1),
+                        ignition_on=True, timestamp=ts,
+                    ))
+                    ping_count += 1
+
+            if ping_count % 3000 == 0:
+                await db.flush()
+                print(f"   [GPS] {ping_count:,} pings...")
+
+        await db.commit()
+        print(f"\n[DONE] GPS re-seed complete: {ping_count:,} clean pings for {len(vehicles)} vehicles")
+
+    await engine.dispose()
+
+
 if __name__ == "__main__":
-    asyncio.run(seed_database())
+    if "--reseed-gps" in sys.argv:
+        asyncio.run(reseed_gps_data())
+    else:
+        asyncio.run(seed_database())

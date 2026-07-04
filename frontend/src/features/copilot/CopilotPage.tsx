@@ -83,15 +83,10 @@ export function CopilotPage() {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold text-slate-800 dark:text-white">Fleet AI Copilot</h2>
-              {copilotMode === "demo" && (
-                <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/30">
-                  DEMO MODE
-                </span>
-              )}
             </div>
             <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-dot" />
-              Online{copilotMode === "demo" ? " · Pattern-based responses" : " · AI Powered"}
+              Online
             </p>
           </div>
         </div>
@@ -114,8 +109,8 @@ export function CopilotPage() {
               )}
 
               <div className={`max-w-[70%] ${msg.role === "user"
-                  ? "bg-brand-600 text-white rounded-2xl rounded-tr-sm px-4 py-3"
-                  : "bg-white dark:bg-surface-900 border border-slate-200 dark:border-slate-800 rounded-2xl rounded-tl-sm px-4 py-3"
+                ? "bg-brand-600 text-white rounded-2xl rounded-tr-sm px-4 py-3"
+                : "bg-white dark:bg-surface-900 border border-slate-200 dark:border-slate-800 rounded-2xl rounded-tl-sm px-4 py-3"
                 }`}>
                 <div className={`text-sm whitespace-pre-wrap ${msg.role === "user" ? "" : "text-slate-800 dark:text-slate-200"
                   }`}>

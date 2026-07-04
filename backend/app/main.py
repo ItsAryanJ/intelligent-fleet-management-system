@@ -117,7 +117,6 @@ def _register_routers(app: FastAPI) -> None:
     @app.get("/api/system/health", tags=["System"])
     async def system_health_dashboard():
         """System health dashboard — real probes for database, services, uptime."""
-        import psutil
         import time
         from sqlalchemy import text
         from app.core.database import async_session_factory
@@ -143,6 +142,7 @@ def _register_routers(app: FastAPI) -> None:
         overall_status = "healthy" if db_status == "connected" else "degraded"
 
         try:
+            import psutil
             cpu = psutil.cpu_percent(interval=0.1)
             memory = psutil.virtual_memory()
             disk = psutil.disk_usage("/")
@@ -170,11 +170,20 @@ def _register_routers(app: FastAPI) -> None:
             }
         except Exception:
             return {
-                "status": "degraded",
+                "status": overall_status,
                 "version": settings.APP_VERSION,
                 "environment": settings.APP_ENV,
-                "system": {"cpu_percent": 0, "memory_percent": 0, "disk_percent": 0},
-                "services": {"database": db_status, "websocket": ws_status},
+                "system": {
+                    "cpu_percent": 0, "memory_percent": 0, "disk_percent": 0,
+                    "memory_total_gb": 0, "memory_used_gb": 0,
+                    "disk_total_gb": 0, "disk_used_gb": 0,
+                    "uptime_hours": 0,
+                },
+                "services": {
+                    "database": db_status,
+                    "websocket": ws_status,
+                    "gps_simulator": simulator_status,
+                },
             }
 
 

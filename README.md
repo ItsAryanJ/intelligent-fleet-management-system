@@ -81,7 +81,8 @@ intelligent-fleet-management-system/
 ```bash
 docker compose up --build
 ```
-- Frontend: http://localhost:3000
+- Frontend: http://localhost (port 80 via Nginx)
+- Frontend (local dev): http://localhost:5173
 - Backend API: http://localhost:8000/api
 - API Docs: http://localhost:8000/docs
 

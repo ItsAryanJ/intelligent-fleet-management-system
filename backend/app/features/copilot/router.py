@@ -569,7 +569,8 @@ async def get_copilot_analytics(
 ):
     """Get copilot usage analytics (admin/executive only)."""
     if current_user.role not in ["ADMIN", "EXECUTIVE"]:
-        return {"error": "Insufficient permissions"}
+        from app.core.exceptions import ForbiddenException
+        raise ForbiddenException("Only ADMIN and EXECUTIVE roles can access copilot analytics")
 
     # Total queries
     total = (await db.execute(

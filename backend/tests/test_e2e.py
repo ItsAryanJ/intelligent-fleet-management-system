@@ -22,8 +22,8 @@ def client():
 def admin_token(client):
     """Login as admin and get token."""
     res = client.post("/api/auth/login", json={
-        "email": "rajesh.sharma0@ncrtc.in",
-        "password": "ncrtc2024",
+        "email": "admin@ncrtc.in",
+        "password": "password123",
     })
     if res.status_code == 200:
         return res.json()["access_token"]
@@ -42,7 +42,7 @@ def auth_headers(admin_token):
 class TestAuthentication:
     def test_login_success(self, client):
         res = client.post("/api/auth/login", json={
-            "email": "rajesh.sharma0@ncrtc.in", "password": "ncrtc2024",
+            "email": "admin@ncrtc.in", "password": "password123",
         })
         assert res.status_code == 200
         data = res.json()
@@ -106,11 +106,14 @@ class TestRoutes:
     def test_list_routes(self, client, auth_headers):
         res = client.get("/api/routes", headers=auth_headers)
         assert res.status_code == 200
+        data = res.json()
+        # Routes returns a flat list, not {items: [...]}
+        assert isinstance(data, list)
 
     def test_route_has_stops(self, client, auth_headers):
         res = client.get("/api/routes", headers=auth_headers)
-        if res.status_code == 200 and res.json().get("items"):
-            route_id = res.json()["items"][0]["id"]
+        if res.status_code == 200 and len(res.json()) > 0:
+            route_id = res.json()[0]["id"]
             stops_res = client.get(f"/api/routes/{route_id}", headers=auth_headers)
             assert stops_res.status_code == 200
 
@@ -302,10 +305,52 @@ class TestFileUploads:
 # ═══════════════════════════════════════════════════════════════════════
 
 class TestGPS:
-    def test_gps_latest(self, client, auth_headers):
-        res = client.get("/api/gps/latest", headers=auth_headers)
+    def test_gps_live(self, client, auth_headers):
+        res = client.get("/api/gps/live", headers=auth_headers)
         assert res.status_code == 200
 
     def test_analytics_dashboard(self, client, auth_headers):
         res = client.get("/api/analytics/dashboard", headers=auth_headers)
         assert res.status_code == 200
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# MODULE 18: INCIDENT LIFECYCLE (NEW)
+# ═══════════════════════════════════════════════════════════════════════
+
+class TestIncidentLifecycle:
+    def test_incident_lifecycle_endpoints_exist(self, client, auth_headers):
+        """Verify the lifecycle endpoint patterns exist (may return 404 for missing IDs)."""
+        # Just check the incidents list first
+        res = client.get("/api/incidents", headers=auth_headers)
+        assert res.status_code == 200
+        items = res.json().get("items", [])
+        if items:
+            inc_id = items[0]["id"]
+            # Events endpoint should work
+            events_res = client.get(f"/api/incidents/{inc_id}/events", headers=auth_headers)
+            assert events_res.status_code == 200
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# MODULE 19: ROSTER PUBLISH (NEW)
+# ═══════════════════════════════════════════════════════════════════════
+
+class TestRosterPublish:
+    def test_conflict_detection(self, client, auth_headers):
+        res = client.get("/api/duties/conflicts", headers=auth_headers,
+                         params={"target_date": str(date.today())})
+        assert res.status_code == 200
+        assert "conflicts" in res.json()
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# MODULE 20: NOTICE READERS (NEW)
+# ═══════════════════════════════════════════════════════════════════════
+
+class TestNoticeReaders:
+    def test_notice_feed(self, client, auth_headers):
+        res = client.get("/api/notices/feed", headers=auth_headers)
+        assert res.status_code == 200
+        data = res.json()
+        assert isinstance(data, list)

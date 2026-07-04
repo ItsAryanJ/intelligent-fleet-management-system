@@ -35,7 +35,7 @@ services:
       - APP_ENV=production
       - APP_DEBUG=false
       - SECRET_KEY=${SECRET_KEY:-ncrtc-prod-secret-key-change-in-production}
-      - CORS_ORIGINS=["http://localhost","http://localhost:80","http://localhost:3000"]
+      - CORS_ORIGINS=["http://localhost","http://localhost:80","http://localhost:5173","http://localhost:3000"]
       - GPS_SIMULATOR_ENABLED=true
       - DEMO_MODE=${DEMO_MODE:-false}
     ports:

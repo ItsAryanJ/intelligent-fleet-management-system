@@ -94,4 +94,4 @@ def get_settings() -> Settings:
     """Get cached settings instance."""
     settings = Settings()
     print("DATABASE URL =", settings.database_url)
-    return Settings()
+    return settings

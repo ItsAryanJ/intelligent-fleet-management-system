@@ -222,6 +222,35 @@ async def update_vehicle(
     return _vehicle_to_response(vehicle)
 
 
+@router.delete("/{vehicle_id}", status_code=200)
+async def delete_vehicle(
+    vehicle_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(require_permission(Permission.VEHICLE_EDIT))],
+):
+    """Soft-delete a vehicle."""
+    stmt = (
+        select(Vehicle)
+        .where(Vehicle.id == vehicle_id, Vehicle.is_deleted == False)
+    )
+    result = await db.execute(stmt)
+    vehicle = result.scalar_one_or_none()
+
+    if not vehicle:
+        raise NotFoundException("Vehicle", vehicle_id)
+
+    if (
+        current_user.role == RoleName.DEPOT_MANAGER.value
+        and vehicle.depot_id != current_user.depot_id
+    ):
+        raise NotFoundException("Vehicle", vehicle_id)
+
+    vehicle.is_deleted = True
+    vehicle.updated_by = str(current_user.id)
+    await db.flush()
+
+    return {"message": f"Vehicle {vehicle.registration_no} deleted"}
+
 def _vehicle_to_response(v: Vehicle) -> VehicleResponse:
     return VehicleResponse(
         id=v.id,

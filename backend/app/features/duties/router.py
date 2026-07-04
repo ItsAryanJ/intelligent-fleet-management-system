@@ -279,39 +279,6 @@ async def bulk_assign(
     return {"created": len(created), "message": f"{len(created)} duties created"}
 
 
-@router.post("/publish")
-async def publish_duties(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[CurrentUser, Depends(require_permission(Permission.DUTY_PUBLISH))],
-    start_date: date = Query(...),
-    end_date: date = Query(...),
-):
-    """Publish duties for a date range."""
-    stmt = (
-        select(Duty)
-        .where(
-            Duty.is_deleted == False,
-            Duty.date >= start_date,
-            Duty.date <= end_date,
-            Duty.status == DutyStatus.DRAFT,
-        )
-    )
-
-    if current_user.role == RoleName.DEPOT_MANAGER.value:
-        stmt = stmt.where(
-            Duty.driver.has(
-            User.depot_id == current_user.depot_id
-            )
-        )
-
-    result = await db.execute(stmt)
-    duties = result.scalars().all()
-
-    for duty in duties:
-        duty.status = DutyStatus.PUBLISHED
-
-    await db.flush()
-    return {"published": len(duties), "message": f"{len(duties)} duties published"}
 
 
 @router.post("/{duty_id}/acknowledge")

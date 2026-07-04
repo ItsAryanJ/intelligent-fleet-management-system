@@ -16,6 +16,7 @@ from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_permission, get_current_user
 from app.core.permissions import Permission, RoleName
 from app.core.websocket import gps_manager
+from app.core.utils import haversine_km
 from app.models import GPSPing, Vehicle
 from app.core.exceptions import NotFoundException
 
@@ -105,11 +106,36 @@ async def get_history(
     result = await db.execute(stmt)
     pings = result.scalars().all()
 
+    # ── Filter out impossible jumps ──────────────────────────────────
+    # The live GPS simulator may insert pings that interleave with seed
+    # data on different routes, creating zigzag artifacts. Use a speed-based
+    # threshold: RRTS max speed is ~160 km/h; reject pings implying >200 km/h.
+    MAX_PLAUSIBLE_SPEED_KMH = 200.0
+    filtered: list = []
+    for p in pings:
+        if not filtered:
+            filtered.append(p)
+            continue
+        prev = filtered[-1]
+        gap_s = (p.timestamp - prev.timestamp).total_seconds()
+        # Allow jumps if there's a large time gap (>5 min = likely new trip segment)
+        if gap_s > 300:
+            filtered.append(p)
+            continue
+        if gap_s < 0.5:
+            # Sub-second pings from the live simulator — skip duplicates
+            continue
+        dist = haversine_km(prev.latitude, prev.longitude, p.latitude, p.longitude)
+        implied_speed = (dist / gap_s) * 3600 if gap_s > 0 else 999999
+        if implied_speed <= MAX_PLAUSIBLE_SPEED_KMH:
+            filtered.append(p)
+        # else: silently drop this ping (impossible speed)
+
     return {
         "vehicle_id": str(vehicle_id),
         "start_date": start_date.isoformat(),
         "end_date": end.isoformat(),
-        "total_pings": len(pings),
+        "total_pings": len(filtered),
         "pings": [
             {
                 "latitude": p.latitude,
@@ -119,7 +145,7 @@ async def get_history(
                 "ignition_on": p.ignition_on,
                 "timestamp": p.timestamp.isoformat(),
             }
-            for p in pings
+            for p in filtered
         ],
     }
 
@@ -171,22 +197,36 @@ async def get_trip_analytics(
         }
 
     speeds = [p.speed for p in pings]
-    idle_pings = [p for p in pings if p.speed < 2.0]
 
-    # Approximate distance using Haversine between consecutive pings
-    import math
+    # Approximate distance using shared Haversine helper
+    # Skip impossible jumps (same logic as history endpoint)
+    MAX_PLAUSIBLE_SPEED_KMH = 200.0
     total_distance = 0.0
+    idle_time_seconds = 0.0
+    moving_time_seconds = 0.0
+
     for i in range(1, len(pings)):
-        lat1, lon1 = math.radians(pings[i-1].latitude), math.radians(pings[i-1].longitude)
-        lat2, lon2 = math.radians(pings[i].latitude), math.radians(pings[i].longitude)
-        dlat = lat2 - lat1
-        dlon = lon2 - lon1
-        a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-        total_distance += 6371 * c  # Earth radius in km
+        delta = (pings[i].timestamp - pings[i-1].timestamp).total_seconds()
+        if delta < 0.5:
+            continue  # Skip sub-second duplicate pings
+        dist = haversine_km(
+            pings[i-1].latitude, pings[i-1].longitude,
+            pings[i].latitude, pings[i].longitude,
+        )
+        implied_speed = (dist / delta) * 3600 if delta > 0 else 999999
+        if delta <= 300 and implied_speed > MAX_PLAUSIBLE_SPEED_KMH:
+            continue  # Skip impossible jump
+        total_distance += dist
+        # Cap individual deltas at 1 hour to avoid counting large gaps
+        delta = min(delta, 3600)
+        if pings[i-1].speed < 2.0:
+            idle_time_seconds += delta
+        else:
+            moving_time_seconds += delta
 
     time_span = (pings[-1].timestamp - pings[0].timestamp).total_seconds() / 60  # minutes
-    idle_time = len(idle_pings) * 5 / 60  # rough estimate based on ping interval
+    idle_time = idle_time_seconds / 60  # minutes
+    moving_time = moving_time_seconds / 60  # minutes
 
     return {
         "vehicle_id": str(vehicle_id),
@@ -196,7 +236,7 @@ async def get_trip_analytics(
         "avg_speed": round(sum(speeds) / len(speeds), 1) if speeds else 0,
         "max_speed": round(max(speeds), 1) if speeds else 0,
         "idle_time_mins": round(idle_time, 1),
-        "moving_time_mins": round(time_span - idle_time, 1),
+        "moving_time_mins": round(moving_time, 1),
         "total_time_mins": round(time_span, 1),
         "first_ping": pings[0].timestamp.isoformat(),
         "last_ping": pings[-1].timestamp.isoformat(),
