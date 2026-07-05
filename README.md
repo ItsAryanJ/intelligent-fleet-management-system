@@ -1,139 +1,328 @@
-# NCRTC Intelligent Fleet Management Platform
+# 🚄 NCRTC Intelligent Fleet Management Platform
 
-## 🚀 Tech Stack
+Enterprise-grade fleet management system for the **National Capital Region Transport Corporation (NCRTC)** Delhi–Meerut Regional Rapid Transit System (RRTS). Provides real-time vehicle tracking (AVLS), route management, duty scheduling, incident lifecycle management, analytics dashboards, AI copilot, and comprehensive reporting — all behind a role-based access control system.
 
-| Layer | Technology |
-|-------|-----------|
-| **Frontend** | React 19 + TypeScript + Vite |
-| **Styling** | Tailwind CSS 4 + Custom Design System |
-| **State** | Zustand (auth) + TanStack Query (server) |
-| **Charts** | Recharts |
-| **Maps** | Leaflet + OpenStreetMap (free tiles) |
-| **Animations** | Framer Motion |
-| **Backend** | FastAPI (Python) + Async SQLAlchemy |
-| **Database** | PostgreSQL 16 + PostGIS |
-| **Auth** | JWT (access + refresh tokens) + bcrypt |
-| **Infrastructure** | Docker Compose + Nginx |
+---
 
-## 📋 Modules
+## Tech Stack
 
-| # | Module | Description |
-|---|--------|-------------|
-| 1 | **Dashboard** | Executive KPIs, utilization charts, incident donut, AI insights |
-| 2 | **AVLS** | Live fleet map with 30s auto-refresh, vehicle markers, detail sidebar |
-| 3 | **Vehicles** | Fleet management with health bars, fuel, GPS status, card grid |
-| 4 | **Routes** | Route network with color-coded cards, stops, frequency |
-| 5 | **Duties** | Shift-grouped scheduling, date nav, bulk assign, conflict detection |
-| 6 | **Incidents** | SLA tracking, severity filtering, timeline events, panic button |
-| 7 | **Notices** | CMS with priority badges, read/acknowledge tracking |
-| 8 | **Analytics** | Fleet utilization, incident trends, driver rankings |
-| 9 | **Users** | RBAC user management with role badges, search, pagination |
-| 10 | **AI Copilot** | Chat interface with suggestion chips, role-aware responses |
-| 11 | **Reports** | CSV/PDF report generation and download |
-| 12 | **Audit** | System audit log with activity timeline |
-| 14 | **Notifications** | In-app notification center |
-| 15 | **Depots** | Depot management with geofencing |
-| 16 | **GPS** | Historical replay, trip analytics, WebSocket streaming |
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| **Frontend** | React + TypeScript + Vite | React 19, Vite 8 |
+| **Styling** | Tailwind CSS | v4.3 |
+| **State Management** | Zustand (auth) + TanStack Query (server) | Zustand 5, TQ 5 |
+| **Charts** | Recharts | v3.8 |
+| **Maps** | Leaflet + React-Leaflet (OpenStreetMap tiles) | Leaflet 1.9 |
+| **Animations** | Framer Motion | v12 |
+| **UI Primitives** | Radix UI | Multiple packages |
+| **Forms** | React Hook Form + Zod | RHF 7, Zod 4 |
+| **Backend** | FastAPI (Python) | v0.115.6 |
+| **ORM** | SQLAlchemy 2.0 (Async) + GeoAlchemy2 | SA 2.0.36 |
+| **Database** | PostgreSQL 16 + PostGIS 3.4 | `postgis/postgis:16-3.4` |
+| **Auth** | JWT (access + refresh tokens) + bcrypt | python-jose, passlib |
+| **PDF Generation** | ReportLab | v4.2.5 |
+| **Infrastructure** | Docker Compose + Nginx | Compose 3.9 |
+| **JSON** | orjson (high-performance responses) | v3.10 |
+| **System Monitoring** | psutil | v6.1 |
 
-## 🏗️ Architecture
+---
+
+## Repository Structure
 
 ```
-
-intelligent-fleet-management-system/
 ├── backend/
 │   ├── app/
-│   │   ├── core/              # Configuration, Database, Security, Middleware, WebSocket
-│   │   ├── features/          # Feature modules (Auth, Vehicles, GPS, Routes, Reports, etc.)
-│   │   ├── services/          # Background services (GPS Simulator)
-│   │   ├── models.py          # SQLAlchemy ORM models with PostGIS support
-│   │   ├── seed.py            # Realistic NCRTC demo data generator
-│   │   └── main.py            # FastAPI application & lifespan events
-│   ├── uploads/               # Uploaded files
-│   ├── requirements.txt
-│   └── Dockerfile
-│
+│   │   ├── core/               # Config, security, database, middleware, permissions, WebSocket, utils, exceptions
+│   │   ├── features/           # Feature modules (18 routers)
+│   │   │   ├── analytics/      # Executive dashboard, fleet utilization, incident analytics, driver performance
+│   │   │   ├── audit/          # Audit log list, activity timeline
+│   │   │   ├── auth/           # Login, register, profile, token refresh
+│   │   │   ├── copilot/        # AI chat (demo mode), tool registry
+│   │   │   ├── depots/         # Depot CRUD with geofence
+│   │   │   ├── duties/         # Scheduling, roster, bulk assign, conflict detection, publish
+│   │   │   ├── geofence/       # Geofence check, route deviation detection
+│   │   │   ├── gps/            # Live tracking, history, analytics, WebSocket stream
+│   │   │   ├── incidents/      # Full lifecycle, SLA monitoring, panic button
+│   │   │   ├── leaves/         # Leave request/approve/reject/cancel
+│   │   │   ├── notices/        # CMS with targeting, read/acknowledge tracking
+│   │   │   ├── notifications/  # In-app notifications, WebSocket delivery
+│   │   │   ├── reports/        # PDF/CSV report generation
+│   │   │   ├── routes/         # Route and stop management
+│   │   │   ├── search/         # Global search (Ctrl+K)
+│   │   │   ├── uploads/        # File upload/download with validation
+│   │   │   ├── users/          # User CRUD, role assignment
+│   │   │   └── vehicles/       # Vehicle CRUD, health status
+│   │   ├── services/
+│   │   │   └── gps_simulator.py  # Autonomous GPS simulation engine (762 lines)
+│   │   ├── models.py           # SQLAlchemy models (20+ tables, 13 enums)
+│   │   ├── seed.py             # Demo data generator
+│   │   └── main.py             # FastAPI app factory, lifespan, router registration
+│   ├── tests/
+│   ├── Dockerfile
+│   └── requirements.txt
 ├── frontend/
 │   ├── src/
-│   │   ├── components/        # Shared UI components
-│   │   ├── features/          # Feature pages (Dashboard, AVLS, Vehicles, etc.)
-│   │   ├── hooks/             # Custom React hooks (GPS WebSocket, Notifications)
-│   │   ├── lib/               # API client & utilities
-│   │   ├── store/             # Zustand state management
-│   │   └── types/             # TypeScript interfaces
-│   ├── package.json
-│   └── Dockerfile
-│
-├── infrastructure/
-│   └── postgres/
-│       └── init.sql
-│
-└── docker-compose.yml
+│   │   ├── features/           # 15 feature pages
+│   │   │   ├── analytics/      # Analytics dashboard
+│   │   │   ├── audit/          # Audit log viewer
+│   │   │   ├── auth/           # Login page
+│   │   │   ├── avls/           # Live map + GPS history replay
+│   │   │   ├── copilot/        # AI copilot chat
+│   │   │   ├── dashboard/      # Role-dispatched dashboard
+│   │   │   ├── duties/         # Duty management + roster
+│   │   │   ├── incidents/      # Incident management
+│   │   │   ├── leaves/         # Leave management
+│   │   │   ├── notices/        # Notice board
+│   │   │   ├── reports/        # Report generation
+│   │   │   ├── routes/         # Route network
+│   │   │   ├── system/         # System health (admin only)
+│   │   │   ├── users/          # User management
+│   │   │   └── vehicles/       # Vehicle fleet
+│   │   ├── components/         # Shared UI components (AppShell, Toast, ErrorBoundary, PermissionGuard)
+│   │   ├── hooks/              # Custom React hooks
+│   │   ├── lib/                # Utilities
+│   │   ├── store/              # Zustand stores (auth)
+│   │   └── types/              # TypeScript type definitions
+│   ├── Dockerfile
+│   └── package.json
+├── docker-compose.yml
+└── README.md
 ```
 
-## 🚀 Quick Start
+---
+
+## Feature Modules
+
+| # | Module | Backend Prefix | Frontend Route | Description |
+|---|--------|---------------|----------------|-------------|
+| 1 | **Authentication** | `/api/auth` | `/login` | JWT login/register, profile view, token refresh |
+| 2 | **Dashboard** | `/api/analytics` | `/dashboard` | Role-dispatched executive KPIs, utilization charts |
+| 3 | **AVLS (Live Tracking)** | `/api/gps` | `/avls` | Real-time fleet map, vehicle markers, WebSocket stream |
+| 4 | **GPS History** | `/api/gps` | `/avls/history` | Historical GPS replay with polyline, speed filtering |
+| 5 | **Vehicles** | `/api/vehicles` | `/vehicles` | Fleet CRUD, health status (fuel, odometer, maintenance) |
+| 6 | **Routes** | `/api/routes` | `/routes` | Route & stop management, route-stop sequencing |
+| 7 | **Duties** | `/api/duties` | `/duties` | Shift scheduling, date filters, paginated list |
+| 8 | **Roster** | `/api/duties/roster` | `/roster` | Weekly roster grid, bulk assign, conflict detection, publish |
+| 9 | **Incidents** | `/api/incidents` | `/incidents` | Full lifecycle (6 states), SLA monitoring, panic button, timeline events |
+| 10 | **Notices (CMS)** | `/api/notices` | `/notices` | Content management with targeting (ALL/ROLE/DEPOT/USER), read tracking |
+| 11 | **Analytics** | `/api/analytics` | `/analytics` | Fleet utilization, incident trends, driver performance rankings, depot analytics |
+| 12 | **Users** | `/api/users` | `/users` | User CRUD, role assignment, search/filter, pagination |
+| 13 | **AI Copilot** | `/api/copilot` | `/copilot` | Natural-language chat with tool registry (demo mode) |
+| 14 | **Reports** | `/api/reports` | `/reports` | Generate/download PDF and CSV reports (fleet, incident, driver, executive) |
+| 15 | **Audit Log** | `/api/audit` | `/audit` | System audit trail, activity timeline |
+| 16 | **Leaves** | `/api/leaves` | `/leaves` | Leave request/approve/reject/cancel with notifications |
+| 17 | **Geofence** | `/api/geo` | — | Depot geofence check, route deviation detection with auto-incident creation |
+| 18 | **Notifications** | `/api/notifications` | — | In-app notification center, mark read, WebSocket real-time delivery |
+| 19 | **Global Search** | `/api/search` | — | Cross-entity search (vehicles, users, routes, incidents, notices) |
+| 20 | **File Uploads** | `/api/uploads` | — | File upload/download/delete with validation (JPG, PNG, PDF) |
+| 21 | **System Health** | `/api/system/health` | `/system-health` | CPU, memory, disk, DB probe, WebSocket count, GPS simulator status |
+| 22 | **Depots** | `/api/depots` | — | Depot CRUD with geofence radius and capacity |
+
+---
+
+## Quick Start (Docker)
+
+```bash
+# Clone and start all services
+git clone <repository-url>
+cd test1
+docker compose up --build -d
+```
+
+This starts 3 containers:
+
+| Container | Port | Description |
+|-----------|------|-------------|
+| `ncrtc-db` | 5432 | PostgreSQL 16 + PostGIS 3.4 |
+| `ncrtc-backend` | 8000 | FastAPI + auto-seed + GPS simulator |
+| `ncrtc-frontend` | 80 | React app served via Nginx |
+
+The backend container **automatically** runs the seed script on first boot, creating demo data. Subsequent starts skip seeding (idempotent check).
+
+**Access the app:** [http://localhost](http://localhost)
+**API docs:** [http://localhost:8000/docs](http://localhost:8000/docs)
+
+---
+
+## Local Development
 
 ### Prerequisites
-- Docker & Docker Compose
-- Node.js 20+ (for local dev)
-- Python 3.11+ (for local dev)
 
-### With Docker
-```bash
-docker compose up --build
-```
-- Frontend: http://localhost (port 80 via Nginx)
-- Frontend (local dev): http://localhost:5173
-- Backend API: http://localhost:8000/api
-- API Docs: http://localhost:8000/docs
+- Python 3.12+
+- Node.js 20+
+- PostgreSQL 16 with PostGIS 3.4
+- (or just Docker)
 
-### Local Development
+### Backend
 
-#### Backend
 ```bash
 cd backend
+
+# Create virtual environment
 python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
+venv\Scripts\activate       # Windows
+# source venv/bin/activate  # Linux/macOS
+
+# Install dependencies
 pip install -r requirements.txt
-python -m app.seed         # Seed database
-uvicorn app.main:app --reload
+
+# Configure environment (copy and edit)
+cp .env.example .env
+
+# Run seed script (first time only)
+python -m app.seed
+
+# Start development server
+uvicorn app.main:app --reload --port 8000
 ```
 
-#### Frontend
+### Frontend
+
 ```bash
 cd frontend
+
+# Install dependencies
 npm install
+
+# Start development server
 npm run dev
 ```
 
-## 🔑 Demo Credentials
+The frontend dev server runs on `http://localhost:5173` and proxies API requests to the backend.
 
-| Role | Email | Password |
-|------|-------|----------|
-| Admin | admin@ncrtc.in | password123 |
-| All other roles | `<first>.<last><N>@ncrtc.in` | ncrtc2024 |
+---
 
-## 🗄️ Seed Data
+## Default Credentials
 
-The seed generator creates realistic NCR transport data:
-- **5** depots (Anand Vihar, Meerut, Ghaziabad, Modinagar, Duhai)
-- **50** vehicles (Tata, Ashok Leyland, Volvo, BYD, Olectra)
-- **100** users across 6 roles
-- **15** routes along the RRTS corridor
-- **30** stops with real NCR coordinates
-- **7 days** of duty schedules (~250 duties)
-- **~6000** GPS pings with realistic movement
-- **50** incidents with SLA tracking
-- **20** notices and announcements
-- **100** audit log entries
+| Email | Password | Role |
+|-------|----------|------|
+| `admin@ncrtc.in` | `password123` | ADMIN |
 
-## 🔒 RBAC Roles
+All other seeded users use password: `ncrtc2024`
 
-| Role | Access |
-|------|--------|
-| ADMIN | Full system access |
-| EXECUTIVE | Analytics, reports, read-only fleet |
-| CONTROL_OPERATOR | Full operations access |
-| DEPOT_MANAGER | Depot-scoped management |
-| DRIVER | Own duties, notices, panic button |
-| CONDUCTOR | Own duties, notices |
+---
 
+## Seed Data
+
+The seed script (`python -m app.seed`) generates realistic NCRTC operational data:
+
+| Entity | Count | Details |
+|--------|-------|---------|
+| Depots | 5 | Sarai Kale Khan, Anand Vihar, Ghaziabad, Murad Nagar, Meerut South |
+| Roles | 6 | ADMIN, CONTROL_OPERATOR, DEPOT_MANAGER, DRIVER, CONDUCTOR, EXECUTIVE |
+| Users | 101 | 3 admin, 8 control ops, 5 depot mgrs, 45 drivers, 30 conductors, 9 executives + 1 system admin |
+| Vehicles | 50 | ALSTOM, Bombardier, CAF trainsets with health records |
+| Stops | 13 | Real NCRTC Delhi–Meerut stations with coordinates |
+| Routes | 15 | Express, local, shuttle, maintenance, and peak-hour services |
+| Duties | ~140 | 7 days of shift assignments across 5 shifts |
+| GPS Pings | ~12,750 | Route-following trajectories with GPS jitter (3 days × 50 vehicles) |
+| Incidents | 50 | With full timeline events matching state progression |
+| Notices | 20 | Published notices with various priorities |
+| Leave Requests | 30 | Various statuses and types |
+| Reports | 10 | Pre-generated report history |
+| Notifications | ~150 | Distributed across first 30 users |
+
+**Re-seed GPS data only:**
+```bash
+python -m app.seed --reseed-gps
+```
+
+---
+
+## RBAC — Roles & Permissions
+
+6 roles with granular permission enforcement:
+
+| Permission | ADMIN | CONTROL_OPERATOR | DEPOT_MANAGER | EXECUTIVE | DRIVER | CONDUCTOR |
+|-----------|:-----:|:----------------:|:-------------:|:---------:|:------:|:---------:|
+| `vehicle.view` | ✅ | ✅ | ✅ (own depot) | ✅ | ✅ | ✅ |
+| `vehicle.edit` | ✅ | ✅ | ✅ (own depot) | — | — | — |
+| `route.view` | ✅ | ✅ | ✅ (own depot) | ✅ | ✅ | ✅ |
+| `route.edit` | ✅ | ✅ | — | — | — | — |
+| `duty.view` | ✅ | ✅ | ✅ (own depot) | ✅ | Own only | Own only |
+| `duty.assign` | ✅ | ✅ | ✅ (own depot) | — | — | — |
+| `duty.publish` | ✅ | ✅ | ✅ | — | — | — |
+| `incident.view` | ✅ | ✅ | ✅ (own depot) | ✅ | Own only | Own only |
+| `incident.create` | ✅ | ✅ | ✅ | — | ✅ | ✅ |
+| `incident.assign` | ✅ | ✅ | ✅ (own depot) | — | — | — |
+| `incident.resolve` | ✅ | ✅ | ✅ (own depot) | — | — | — |
+| `notice.view` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `notice.publish` | ✅ | ✅ | — | — | — | — |
+| `analytics.view` | ✅ | ✅ | ✅ (own depot) | ✅ | — | — |
+| `report.view` | ✅ | ✅ | ✅ (own depot) | ✅ | — | — |
+| `report.generate` | ✅ | ✅ | ✅ (own depot) | ✅ | — | — |
+| `user.view` | ✅ | ✅ | ✅ (own depot) | — | — | — |
+| `user.manage` | ✅ | — | — | — | — | — |
+| `depot.view` | ✅ | ✅ | ✅ (own depot) | ✅ | — | — |
+| `depot.edit` | ✅ | — | — | — | — | — |
+| `gps.view` | ✅ | ✅ | ✅ (own depot) | ✅ | — | — |
+| `copilot.use` | ✅ | ✅ | ✅ | ✅ | — | — |
+| `audit.view` | ✅ | — | — | — | — | — |
+| `geofence.view` | ✅ | ✅ | ✅ (own depot) | — | — | — |
+| `leave.approve` | ✅ | — | ✅ (own depot) | — | — | — |
+
+> **Depot scoping:** Depot Managers automatically see only data belonging to their assigned depot. This is enforced at the query level in every router.
+
+---
+
+## WebSocket Endpoints
+
+| Endpoint | Auth | Description |
+|----------|------|-------------|
+| `ws://host:8000/api/gps/ws?token=<jwt>` | JWT via query param | Real-time GPS updates for all vehicles. Broadcasts `gps_update` events with lat/lng/speed/heading every 5s (configurable). |
+| `ws://host:8000/api/notifications/ws?token=<jwt>` | JWT via query param | Real-time notification delivery. Supports `ping`/`pong` keepalive. Event types: `DUTY_PUBLISHED`, `INCIDENT_ASSIGNED`, `LEAVE_STATUS`, `GEOFENCE_BREACH`, etc. |
+
+---
+
+## GPS Simulator
+
+An autonomous background engine that runs inside the FastAPI lifespan. It simulates realistic vehicle movement along routes:
+
+- **Movement phases:** STOPPED → DEPARTING → ACCELERATING → CRUISING → BRAKING
+- **Station dwell:** 15–30s at intermediate stops, longer at terminals
+- **Terminal reversal:** Vehicles reverse direction at route endpoints
+- **Speed profiles:** 15–80 km/h with per-vehicle randomized "personality" (cruise speed, accel/decel rates)
+- **Persistence:** Updates `Vehicle.last_latitude/longitude/speed/heading` + inserts `GPSPing` records + broadcasts via WebSocket
+- **Deadlock handling:** Deterministic lock ordering + exponential backoff retry (up to 3 attempts)
+
+**Configuration:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `GPS_SIMULATOR_ENABLED` | `true` | Enable/disable the simulator |
+| `GPS_SIMULATOR_INTERVAL_SECONDS` | `5` | Tick interval in seconds |
+| `GPS_SIMULATOR_VEHICLE_COUNT` | `50` | Max vehicles to simulate |
+
+---
+
+## Environment Variables
+
+See [`backend/.env.example`](backend/.env.example) for the full reference. Key variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APP_ENV` | `development` | `development` or `production` |
+| `SECRET_KEY` | *(change in prod)* | JWT signing secret |
+| `POSTGRES_HOST` | `localhost` | Database host |
+| `POSTGRES_PORT` | `5432` | Database port |
+| `POSTGRES_DB` | `ncrtc_fleet` | Database name |
+| `POSTGRES_USER` | `ncrtc_admin` | Database user |
+| `POSTGRES_PASSWORD` | *(see .env.example)* | Database password |
+| `GPS_SIMULATOR_ENABLED` | `true` | Enable GPS simulator |
+| `COPILOT_MODE` | `demo` | `demo` (pattern matching) or `live` |
+| `CORS_ORIGINS` | `["http://localhost:5173", ...]` | Allowed CORS origins |
+
+---
+
+## Related Documentation
+
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** — System architecture diagrams (Mermaid)
+- **[API.md](API.md)** — Complete API reference (all 18 modules)
+- **[DATABASE.md](DATABASE.md)** — Database schema documentation
+- **[DOCKER.md](DOCKER.md)** — Docker operations guide
+
+---
+
+## License
+
+Proprietary — NCRTC Internal Use Only.
