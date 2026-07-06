@@ -177,14 +177,14 @@ async def seed_database():
         # ── 3. Users ─────────────────────────────────────────────────
         print("👤 Creating users...")
         users = []
-        user_idx = 0
-        password_hash = hash_password("ncrtc@2026")
+        user_idx = 5
+        generated_password_hash= hash_password("ncrtc@2026")
+        default_password_hash = hash_password("pass@123")
 
-        admin_hash = hash_password("pass@123")
         admin_user = User(
             first_name="System", last_name="Admin",
             email="admin@ncrtc.in",
-            password_hash=admin_hash,
+            password_hash=default_password_hash,
             employee_id="NCRTC-0000",
             phone="+91-9999999999",
             role_id=role_map["ADMIN"].id,
@@ -194,11 +194,10 @@ async def seed_database():
         db.add(admin_user)
         users.append(admin_user)
 
-        co_hash = hash_password("pass@123")
         co_user = User(
             first_name="Control", last_name="Operator",
             email="control.operator@ncrtc.in",
-            password_hash=co_hash,
+            password_hash=default_password_hash,
             employee_id="NCRTC-0001",
             phone="+91-9999999998",
             role_id=role_map["CONTROL_OPERATOR"].id,
@@ -208,11 +207,10 @@ async def seed_database():
         db.add(co_user)
         users.append(co_user)
 
-        depoy_hash = hash_password("pass@123")
         depot_user = User(
             first_name="Depot", last_name="Manager",
             email="depot.manager@ncrtc.in",
-            password_hash=co_hash,
+            password_hash=default_password_hash,
             employee_id="NCRTC-0002",
             phone="+91-9999999998",
             role_id=role_map["DEPOT_MANAGER"].id,
@@ -222,11 +220,10 @@ async def seed_database():
         db.add(depot_user)
         users.append(depot_user)
 
-        driver_hash = hash_password("pass@123")
         driver_user = User(
             first_name="Driver", last_name="",
             email="driver@ncrtc.in",
-            password_hash=driver_hash,
+            password_hash=default_password_hash,
             employee_id="NCRTC-0003",
             phone="+91-9999999997",
             role_id=role_map["DRIVER"].id,
@@ -236,11 +233,10 @@ async def seed_database():
         db.add(driver_user)
         users.append(driver_user)
 
-        conductor_hash = hash_password("pass@123")
         conductor_user = User(
             first_name="Conductor", last_name="",
             email="conductor@ncrtc.in",
-            password_hash=conductor_hash,
+            password_hash=default_password_hash,
             employee_id="NCRTC-0004",
             phone="+91-9998999998",
             role_id=role_map["CONDUCTOR"].id,
@@ -250,11 +246,10 @@ async def seed_database():
         db.add(conductor_user)
         users.append(conductor_user)
 
-        executive_hash = hash_password("pass@123")
         executive_user = User(
             first_name="Executive", last_name="",
             email="executive@ncrtc.in",
-            password_hash=co_hash,
+            password_hash=default_password_hash,
             employee_id="NCRTC-0005",
             phone="+91-9996999998",
             role_id=role_map["EXECUTIVE"].id,
@@ -272,7 +267,7 @@ async def seed_database():
                 user = User(
                     first_name=first, last_name=last,
                     email=f"{first.lower()}.{last.lower()}{user_idx}@ncrtc.in",
-                    password_hash=password_hash,
+                    password_hash=generated_password_hash,
                     employee_id=f"NCRTC-{str(user_idx + 1).zfill(4)}",
                     phone=f"+91-{random.randint(7000000000, 9999999999)}",
                     role_id=role_map[role_name].id,
