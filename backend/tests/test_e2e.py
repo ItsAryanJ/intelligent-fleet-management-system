@@ -42,7 +42,7 @@ def auth_headers(admin_token):
 class TestAuthentication:
     def test_login_success(self, client):
         res = client.post("/api/auth/login", json={
-            "email": "admin@ncrtc.in", "password": "password123",
+            "email": "admin@ncrtc.in", "password": "pass@123",
         })
         assert res.status_code == 200
         data = res.json()
