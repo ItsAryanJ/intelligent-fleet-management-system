@@ -172,6 +172,9 @@ cp .env.example .env
 # Run seed script (first time only)
 python -m app.seed
 
+# Run seed script with only GPS data (this is important if you want to generate new GPS data without affecting other seeded data)
+python -m app.seed --reseed-gps
+
 # Start development server
 uvicorn app.main:app --reload --port 8000
 ```
@@ -196,9 +199,15 @@ The frontend dev server runs on `http://localhost:5173` and proxies API requests
 
 | Email | Password | Role |
 |-------|----------|------|
-| `admin@ncrtc.in` | `password123` | ADMIN |
+| `admin@ncrtc.in` | `pass@123` | ADMIN |
+| `control.operator@ncrtc.in` | `pass@123` | CONTROL_OPERATOR |
+| `depot.manager@ncrtc.in` | `pass@123` | DEPOT_MANAGER |
+| `driver@ncrtc.in` | `pass@123` | DRIVER |
+| `conductor@ncrtc.in` | `pass@123` | CONDUCTOR |
+| `executive@ncrtc.in` | `pass@123` | EXECUTIVE |
 
-All other seeded users use password: `ncrtc2024`
+
+All other seeded users use password: `ncrtc@2026`
 
 ---
 
@@ -210,7 +219,7 @@ The seed script (`python -m app.seed`) generates realistic NCRTC operational dat
 |--------|-------|---------|
 | Depots | 5 | Sarai Kale Khan, Anand Vihar, Ghaziabad, Murad Nagar, Meerut South |
 | Roles | 6 | ADMIN, CONTROL_OPERATOR, DEPOT_MANAGER, DRIVER, CONDUCTOR, EXECUTIVE |
-| Users | 101 | 3 admin, 8 control ops, 5 depot mgrs, 45 drivers, 30 conductors, 9 executives + 1 system admin |
+| Users | 106 | 3 admin, 8 control ops, 5 depot mgrs, 45 drivers, 30 conductors, 9 executives + 6 default account for each roles|
 | Vehicles | 50 | ALSTOM, Bombardier, CAF trainsets with health records |
 | Stops | 13 | Real NCRTC Delhi–Meerut stations with coordinates |
 | Routes | 15 | Express, local, shuttle, maintenance, and peak-hour services |
