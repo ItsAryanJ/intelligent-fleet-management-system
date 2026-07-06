@@ -39,6 +39,16 @@ jobs:
         working-directory: backend
         run: pip install -r requirements.txt
 
+      - name: Run migrations
+        working-directory: backend
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: ncrtc_fleet_test
+          POSTGRES_USER: ncrtc_admin
+          POSTGRES_PASSWORD: test_password
+        run: alembic upgrade head
+
       - name: Seed database
         working-directory: backend
         env:
@@ -59,7 +69,16 @@ jobs:
           POSTGRES_PASSWORD: test_password
         run: |
           uvicorn app.main:app --host 0.0.0.0 --port 8000 &
-          sleep 5
+
+          echo "Waiting for backend..."
+          for i in {1..30}; do
+            if curl -sf http://localhost:8000/api/health > /dev/null; then
+              echo "Backend is ready."
+              break
+            fi
+            sleep 2
+          done
+
           pytest tests/ -v --tb=short
 
   frontend-build:
