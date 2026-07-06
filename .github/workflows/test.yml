@@ -58,18 +58,27 @@ jobs:
           POSTGRES_USER: ncrtc_admin
           POSTGRES_PASSWORD: test_password
         run: |
+          set -x
+
           uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          SERVER_PID=$!
 
           echo "Waiting for backend..."
+
           for i in {1..30}; do
-            if curl -sf http://localhost:8000/api/health > /dev/null; then
-              echo "Backend is ready."
+            if curl -sf http://localhost:8000/api/health; then
+              echo "Backend ready."
               break
             fi
             sleep 2
           done
 
-          pytest tests/ -v --tb=short
+          pytest tests/ -v --tb=long
+          TEST_EXIT=$?
+
+          kill $SERVER_PID || true
+
+          exit $TEST_EXIT
 
   frontend-build:
     name: Frontend Build & Lint
