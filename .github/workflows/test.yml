@@ -39,16 +39,6 @@ jobs:
         working-directory: backend
         run: pip install -r requirements.txt
 
-      - name: Run migrations
-        working-directory: backend
-        env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
-          POSTGRES_DB: ncrtc_fleet_test
-          POSTGRES_USER: ncrtc_admin
-          POSTGRES_PASSWORD: test_password
-        run: alembic upgrade head
-
       - name: Seed database
         working-directory: backend
         env:
