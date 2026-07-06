@@ -23,7 +23,7 @@ def admin_token(client):
     """Login as admin and get token."""
     res = client.post("/api/auth/login", json={
         "email": "admin@ncrtc.in",
-        "password": "password123",
+        "password": "pass@123",
     })
     if res.status_code == 200:
         return res.json()["access_token"]
