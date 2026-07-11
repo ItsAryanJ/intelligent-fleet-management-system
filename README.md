@@ -57,7 +57,6 @@ Enterprise-grade fleet management system for the **National Capital Region Trans
 │   │   ├── models.py           # SQLAlchemy models (20+ tables, 13 enums)
 │   │   ├── seed.py             # Demo data generator
 │   │   └── main.py             # FastAPI app factory, lifespan, router registration
-│   ├── tests/
 │   ├── Dockerfile
 │   └── requirements.txt
 ├── frontend/
@@ -85,6 +84,7 @@ Enterprise-grade fleet management system for the **National Capital Region Trans
 │   │   └── types/              # TypeScript type definitions
 │   ├── Dockerfile
 │   └── package.json
+├── .github/workflows/ci.yml    # GitHub Actions CI pipeline
 ├── docker-compose.yml
 └── README.md
 ```
@@ -125,7 +125,7 @@ Enterprise-grade fleet management system for the **National Capital Region Trans
 ```bash
 # Clone and start all services
 git clone <repository-url>
-cd test1
+cd intelligent-fleet-management-system
 docker compose up --build -d
 ```
 
@@ -323,12 +323,55 @@ See [`backend/.env.example`](backend/.env.example) for the full reference. Key v
 
 ---
 
+## Testing
+
+The backend includes a pytest suite covering core modules:
+
+```bash
+cd backend
+
+# Run all unit tests (no database required)
+python -m pytest tests/ -m "not integration" -v
+
+# Run with coverage
+python -m pytest tests/ --cov=app --cov-report=term-missing
+
+# Run only security tests
+python -m pytest tests/test_security.py -v
+```
+
+**Test modules:**
+
+| File | Scope | Tests |
+|------|-------|-------|
+| `test_security.py` | JTI denylist (deny_token, is_token_denied) | 3 |
+| `test_exceptions.py` | Exception hierarchy (status codes, error codes) | 8 |
+| `test_utils.py` | Haversine distance, file upload sanitization | 7 |
+| `test_health.py` | Health endpoints (requires app context) | 2 |
+| `test_auth.py` | Auth flow (login, protected routes, logout) | 5 |
+
+> **Integration tests** (marked `@pytest.mark.integration`) require a live PostgreSQL+PostGIS instance. These run automatically in CI via the `postgis/postgis:16-3.4` service container.
+
+---
+
+## CI/CD
+
+GitHub Actions runs on every push to `main`/`develop` and on pull requests:
+
+```yaml
+# .github/workflows/ci.yml
+Jobs:
+  1. backend-lint-test     # ruff lint + pytest (PostGIS service container)
+  2. frontend-build        # TypeScript type-check + Vite production build
+```
+
+---
+
 ## Related Documentation
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — System architecture diagrams (Mermaid)
-- **[API.md](API.md)** — Complete API reference (all 18 modules)
-- **[DATABASE.md](DATABASE.md)** — Database schema documentation
-- **[DOCKER.md](DOCKER.md)** — Docker operations guide
+
+> **Note:** The following docs are referenced for completeness but may not exist yet as standalone files. The primary reference is this README and the interactive API docs at `/docs`.
 
 ---
 

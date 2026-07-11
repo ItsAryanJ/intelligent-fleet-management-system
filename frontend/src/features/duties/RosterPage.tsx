@@ -55,8 +55,8 @@ export function RosterPage() {
   const { data: dutiesData, isLoading } = useQuery({
     queryKey: ["roster-duties", startStr, endStr],
     queryFn: async () => {
-      const res = await api.get("/duties", { params: { start_date: startStr, end_date: endStr, page_size: 200 } })
-      return res.data?.items || []
+      const res = await api.get("/duties/roster", { params: { start_date: startStr, end_date: endStr } })
+      return res.data?.duties || []
     },
   })
 

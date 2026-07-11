@@ -113,10 +113,18 @@ async def list_routes(
         .options(selectinload(Route.depot), selectinload(Route.route_stops))
         .where(Route.is_deleted == False)
     )
-    if depot_id:
-        stmt = stmt.where(Route.depot_id == depot_id)
-    elif current_user.role == RoleName.DEPOT_MANAGER.value:
+    # RBAC: Enforce depot scoping — depot managers, drivers, and conductors
+    # can only see routes belonging to their own depot.
+    if current_user.role in [
+        RoleName.DEPOT_MANAGER.value,
+        RoleName.DRIVER.value,
+        RoleName.CONDUCTOR.value,
+    ]:
+        # Always scope to own depot, ignore any depot_id param
         stmt = stmt.where(Route.depot_id == current_user.depot_id)
+    elif depot_id:
+        # Admin / Control Operator / Executive can filter by any depot
+        stmt = stmt.where(Route.depot_id == depot_id)
     if is_active is not None:
         stmt = stmt.where(Route.is_active == is_active)
 
@@ -280,3 +288,114 @@ async def create_stop(
     db.add(stop)
     await db.flush()
     return {"id": stop.id, "name": stop.name, "code": stop.code}
+
+
+# ── Route Delete ─────────────────────────────────────────────────────────
+@router.delete("/{route_id}", status_code=204)
+async def delete_route(
+    route_id: UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(require_permission(Permission.ROUTE_EDIT))],
+):
+    """Soft-delete a route."""
+    stmt = select(Route).where(Route.id == route_id, Route.is_deleted == False)
+    result = await db.execute(stmt)
+    route = result.scalar_one_or_none()
+    if not route:
+        raise NotFoundException("Route", route_id)
+
+    route.is_deleted = True
+    route.updated_by = str(current_user.id)
+    await db.flush()
+    return None
+
+
+# ── Route Stop Reorder ───────────────────────────────────────────────────
+class StopReorderItem(BaseModel):
+    route_stop_id: UUID
+    sequence: int
+
+
+class StopReorderRequest(BaseModel):
+    stops: list[StopReorderItem]
+
+
+@router.put("/{route_id}/stops/reorder")
+async def reorder_route_stops(
+    route_id: UUID,
+    body: StopReorderRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(require_permission(Permission.ROUTE_EDIT))],
+):
+    """Reorder stops on a route by updating their sequence numbers."""
+    # Verify route exists
+    route_check = await db.execute(
+        select(Route).where(Route.id == route_id, Route.is_deleted == False)
+    )
+    if not route_check.scalar_one_or_none():
+        raise NotFoundException("Route", route_id)
+
+    for item in body.stops:
+        rs = await db.get(RouteStop, item.route_stop_id)
+        if rs and str(rs.route_id) == str(route_id):
+            rs.sequence = item.sequence
+
+    await db.flush()
+    return {"message": f"Reordered {len(body.stops)} stops"}
+
+
+# ── Batch Replace Route Stops ────────────────────────────────────────────
+class BatchRouteStopItem(BaseModel):
+    stop_id: UUID
+    sequence: int
+    distance_from_start_km: float = 0.0
+    scheduled_arrival_offset_mins: int = 0
+    scheduled_departure_offset_mins: int = 0
+    is_timing_point: bool = False
+
+
+class BatchRouteStopsRequest(BaseModel):
+    stops: list[BatchRouteStopItem]
+
+
+@router.put("/{route_id}/stops")
+async def batch_replace_route_stops(
+    route_id: UUID,
+    body: BatchRouteStopsRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(require_permission(Permission.ROUTE_EDIT))],
+):
+    """Replace all stops on a route. This is the route-stop editor save action."""
+    # Verify route exists
+    route_check = await db.execute(
+        select(Route).where(Route.id == route_id, Route.is_deleted == False)
+    )
+    route = route_check.scalar_one_or_none()
+    if not route:
+        raise NotFoundException("Route", route_id)
+
+    # Delete existing route_stops
+    existing = await db.execute(
+        select(RouteStop).where(RouteStop.route_id == route_id)
+    )
+    for rs in existing.scalars().all():
+        await db.delete(rs)
+    await db.flush()
+
+    # Create new ones
+    for item in body.stops:
+        rs = RouteStop(
+            route_id=route_id,
+            stop_id=item.stop_id,
+            sequence=item.sequence,
+            distance_from_start_km=item.distance_from_start_km,
+            scheduled_arrival_offset_mins=item.scheduled_arrival_offset_mins,
+            scheduled_departure_offset_mins=item.scheduled_departure_offset_mins,
+            is_timing_point=item.is_timing_point,
+        )
+        db.add(rs)
+
+    route.updated_by = str(current_user.id)
+    await db.flush()
+
+    return {"message": f"Route {route.code} updated with {len(body.stops)} stops"}

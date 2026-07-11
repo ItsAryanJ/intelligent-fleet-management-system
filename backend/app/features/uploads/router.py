@@ -134,6 +134,55 @@ async def upload_file(
     }
 
 
+@router.get("")
+async def list_files_root(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+    category: Optional[str] = None,
+    resource_id: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=50),
+):
+    """List uploaded files — root alias for /list.
+
+    The frontend FileUpload component calls GET /uploads?category=...&resource_id=...
+    so this root handler must exist and be registered before /{file_id}.
+    """
+    stmt = select(AuditLog).where(AuditLog.action == "FILE_UPLOAD")
+
+    if category:
+        stmt = stmt.where(AuditLog.details["category"].astext == category)
+    if resource_id:
+        stmt = stmt.where(AuditLog.details["resource_id"].astext == resource_id)
+
+    count_stmt = select(func.count()).select_from(stmt.subquery())
+    total = (await db.execute(count_stmt)).scalar() or 0
+
+    stmt = stmt.order_by(AuditLog.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
+    result = await db.execute(stmt)
+    audits = result.scalars().all()
+
+    return {
+        "items": [
+            {
+                "id": a.resource_id,
+                "filename": a.details.get("original_name") if a.details else None,
+                "category": a.details.get("category") if a.details else None,
+                "size_bytes": a.details.get("size_bytes") if a.details else None,
+                "mime_type": a.details.get("mime_type") if a.details else None,
+                "resource_id": a.details.get("resource_id") if a.details else None,
+                "uploaded_by": str(a.user_id) if a.user_id else None,
+                "uploaded_at": a.created_at.isoformat(),
+                "url": f"/api/uploads/{a.resource_id}",
+            }
+            for a in audits
+        ],
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
 @router.get("/{file_id}")
 async def get_file(
     file_id: str,

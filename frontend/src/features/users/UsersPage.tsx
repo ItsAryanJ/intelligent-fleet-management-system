@@ -6,6 +6,7 @@ import { UserFormModal } from "./UserFormModal"
 import { ConfirmDialog } from "@/components/shared/ConfirmDialog"
 import { useToast } from "@/components/shared/Toast"
 import { Users, Search, Plus, Mail, Shield, MapPin, Phone, Pencil, Trash2 } from "lucide-react"
+import { ErrorState } from "@/components/shared/StateDisplays"
 
 export function UsersPage() {
   const [search, setSearch] = useState("")
@@ -16,7 +17,7 @@ export function UsersPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["users", page, search],
     queryFn: async () => {
       const params: any = { page, page_size: 20 }

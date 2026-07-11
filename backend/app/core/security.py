@@ -5,6 +5,8 @@ Security utilities — JWT tokens, password hashing, and authentication.
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from uuid import UUID
+import uuid as uuid_module
+import threading
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -15,6 +17,25 @@ settings = get_settings()
 
 # ── Password Hashing ────────────────────────────────────────────────────
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# ── Token Denylist (in-memory, cleared on restart) ──────────────────────
+# NOTE: This is intentionally in-memory. A production system would use
+# Redis or a database table. Restarting the server clears the denylist,
+# but tokens also have short expiry (30min access, 7day refresh).
+_denied_jtis: set[str] = set()
+_denylist_lock = threading.Lock()
+
+
+def deny_token(jti: str) -> None:
+    """Add a JTI to the denylist (called on logout)."""
+    with _denylist_lock:
+        _denied_jtis.add(jti)
+
+
+def is_token_denied(jti: str) -> bool:
+    """Check if a JTI has been denied."""
+    with _denylist_lock:
+        return jti in _denied_jtis
 
 
 def hash_password(password: str) -> str:
@@ -49,6 +70,7 @@ def create_access_token(
         "permissions": permissions,
         "depot_id": str(depot_id) if depot_id else None,
         "type": "access",
+        "jti": uuid_module.uuid4().hex,
         "exp": expire,
         "iat": datetime.now(timezone.utc),
     }
@@ -72,6 +94,7 @@ def create_refresh_token(
     to_encode: dict[str, Any] = {
         "sub": str(subject),
         "type": "refresh",
+        "jti": uuid_module.uuid4().hex,
         "exp": expire,
         "iat": datetime.now(timezone.utc),
     }
@@ -96,6 +119,9 @@ def verify_access_token(token: str) -> dict[str, Any]:
     payload = decode_token(token)
     if payload.get("type") != "access":
         raise ValueError("Not an access token")
+    jti = payload.get("jti")
+    if jti and is_token_denied(jti):
+        raise ValueError("Token has been revoked")
     return payload
 
 
@@ -104,4 +130,7 @@ def verify_refresh_token(token: str) -> dict[str, Any]:
     payload = decode_token(token)
     if payload.get("type") != "refresh":
         raise ValueError("Not a refresh token")
+    jti = payload.get("jti")
+    if jti and is_token_denied(jti):
+        raise ValueError("Token has been revoked")
     return payload

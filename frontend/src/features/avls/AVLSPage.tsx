@@ -407,8 +407,18 @@ export function AVLSPage() {
             </div>
 
             <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
+              {selectedVehicle.route_name && (
+                <div className="flex items-center gap-2 mb-2">
+                  <Radio className="w-3.5 h-3.5 text-brand-500" />
+                  <span className="text-xs font-medium text-brand-600 dark:text-brand-400">
+                    {selectedVehicle.route_name}
+                  </span>
+                </div>
+              )}
               <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                Last updated: {selectedVehicle.last_updated || "Just now"}
+                Last updated: {selectedVehicle.last_updated
+                  ? new Date(selectedVehicle.last_updated).toLocaleTimeString()
+                  : "Just now"}
               </p>
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1">
                 Lat: {selectedVehicle.latitude?.toFixed(6)}, Lon: {selectedVehicle.longitude?.toFixed(6)}

@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_permission, get_current_user
-from app.core.exceptions import BadRequestException, ForbiddenException, NotFoundException
+from app.core.exceptions import BadRequestException, ConflictException, ForbiddenException, NotFoundException
 from app.core.permissions import Permission, RoleName
 from app.models import Duty, DutyStatus, User, Vehicle, Route
 
@@ -200,6 +200,43 @@ async def get_roster(
     }
 
 
+# ── Double-Booking Prevention ────────────────────────────────────────────
+async def _assert_no_conflict(
+    db: AsyncSession,
+    duty_date: date,
+    shift: str,
+    driver_id: UUID | None,
+    vehicle_id: UUID | None,
+    exclude_duty_id: UUID | None = None,
+) -> None:
+    """Raise 409 if driver or vehicle is already assigned for the same date+shift."""
+    filters = [
+        Duty.is_deleted == False,
+        Duty.date == duty_date,
+        Duty.shift == shift,
+    ]
+    if exclude_duty_id:
+        filters.append(Duty.id != exclude_duty_id)
+
+    if driver_id:
+        driver_conflict = await db.execute(
+            select(Duty).where(*filters, Duty.driver_id == driver_id).limit(1)
+        )
+        if driver_conflict.scalar_one_or_none():
+            raise ConflictException(
+                f"Driver is already assigned to another duty on {duty_date} ({shift} shift)."
+            )
+
+    if vehicle_id:
+        vehicle_conflict = await db.execute(
+            select(Duty).where(*filters, Duty.vehicle_id == vehicle_id).limit(1)
+        )
+        if vehicle_conflict.scalar_one_or_none():
+            raise ConflictException(
+                f"Vehicle is already assigned to another duty on {duty_date} ({shift} shift)."
+            )
+
+
 @router.post("", status_code=201)
 async def create_duty(
     body: DutyCreate,
@@ -220,6 +257,9 @@ async def create_duty(
         if vehicle.depot_id != current_user.depot_id: 
             raise ForbiddenException("Cannot assign vehicles from another depot")
     
+    # Prevent double-booking
+    await _assert_no_conflict(db, body.date, body.shift, body.driver_id, body.vehicle_id)
+
     duty = Duty(
         date=body.date,
         shift=body.shift,
@@ -259,6 +299,12 @@ async def bulk_assign(
                 raise ForbiddenException("Cannot assign duties to drivers from another depot")
             if vehicle and vehicle.depot_id != current_user.depot_id:
                 raise ForbiddenException("Cannot assign vehicles from another depot")
+
+        # Prevent double-booking
+        await _assert_no_conflict(
+            db, assignment.date, assignment.shift,
+            assignment.driver_id, assignment.vehicle_id,
+        )
 
         duty = Duty(
             date=assignment.date,

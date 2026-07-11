@@ -56,3 +56,4 @@ backend/reports/generated/*
 # Logs
 *.log
 logs/
+

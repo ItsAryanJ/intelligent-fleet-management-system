@@ -13,7 +13,7 @@ from sqlalchemy.orm import selectinload
 from pydantic import BaseModel, Field
 
 from app.core.database import get_db
-from app.core.dependencies import CurrentUser, require_permission
+from app.core.dependencies import CurrentUser, require_permission, depot_scope_filter
 from app.core.exceptions import ConflictException, NotFoundException
 from app.core.permissions import Permission, RoleName
 from app.models import Vehicle, VehicleHealth, VehicleStatus, VehicleType, Duty, DutyStatus
@@ -92,8 +92,10 @@ async def list_vehicles(
         .options(selectinload(Vehicle.depot), selectinload(Vehicle.health))
         .where(Vehicle.is_deleted == False)
     )
-    if current_user.role == RoleName.DEPOT_MANAGER.value:
-        stmt = stmt.where(Vehicle.depot_id == current_user.depot_id)
+    # Depot-scope RBAC: restrict depot managers to their own depot
+    scope = depot_scope_filter(current_user, Vehicle.depot_id)
+    if scope is not None:
+        stmt = stmt.where(scope)
     if search:
         stmt = stmt.where(Vehicle.registration_no.ilike(f"%{search}%"))
     if status:

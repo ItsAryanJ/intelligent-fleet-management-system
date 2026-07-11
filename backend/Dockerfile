@@ -23,4 +23,7 @@ RUN mkdir -p uploads/incidents uploads/notices uploads/profiles uploads/reports
 EXPOSE 8000
 
 # Start with schema init + seed + server
-CMD ["sh", "-c", "set -e; python -c 'from app.seed import seed_database; import asyncio; asyncio.run(seed_database())' || echo 'WARN: seed skipped (may already exist)'; exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# The seed script is idempotent — it checks if data already exists.
+# We only suppress the specific "already seeded" case; real errors
+# (connection failures, schema issues) will crash the container on purpose.
+CMD ["sh", "-c", "python -c 'from app.seed import seed_database; import asyncio; asyncio.run(seed_database())' && echo 'Seed: OK' || { echo 'ERROR: Seed script failed — container will NOT start with a broken database.'; exit 1; }; exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]

@@ -9,6 +9,7 @@ import {
   AlertTriangle, Clock, User, Bus, MapPin,
   Filter, Search, ChevronRight, Shield, Timer, Plus,
 } from "lucide-react"
+import { LoadingState, ErrorState, EmptyState } from "@/components/shared/StateDisplays"
 
 const SEVERITY_CONFIG: Record<string, { label: string; class: string; dot: string }> = {
   P1: { label: "P1 Critical", class: "badge-p1", dot: "bg-red-500" },
@@ -32,7 +33,7 @@ export function IncidentsPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["incidents", page, statusFilter, severityFilter],
     queryFn: async () => {
       const params: any = { page, page_size: 20 }
@@ -128,9 +129,9 @@ export function IncidentsPage() {
 
       {/* Incident List */}
       {isLoading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-24 skeleton rounded-xl" />)}
-        </div>
+        <LoadingState text="Loading incidents..." rows={5} />
+      ) : isError ? (
+        <ErrorState title="Failed to load incidents" description="Check your connection and try again." onRetry={() => refetch()} />
       ) : (
         <div className="space-y-3">
           {incidents.map((incident, idx) => {
@@ -197,10 +198,11 @@ export function IncidentsPage() {
           })}
 
           {incidents.length === 0 && (
-            <div className="text-center py-16">
-              <AlertTriangle className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
-              <p className="text-slate-500">No incidents found</p>
-            </div>
+            <EmptyState
+              icon={AlertTriangle}
+              title="No incidents found"
+              description={statusFilter !== "ALL" || severityFilter !== "ALL" ? "Try adjusting your filters." : undefined}
+            />
           )}
         </div>
       )}

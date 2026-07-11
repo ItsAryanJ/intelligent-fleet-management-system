@@ -109,8 +109,27 @@ async def check_geofence(
         )
 
     for depot in depots:
-        dist = _haversine_m(body.latitude, body.longitude, depot.latitude, depot.longitude)
-        if dist <= depot.geofence_radius_m:
+        # Prefer PostGIS ST_Contains if geofence polygon exists
+        if depot.geofence is not None:
+            from geoalchemy2 import functions as geo_func
+            from sqlalchemy import func as sa_func
+            point_wkt = f"POINT({body.longitude} {body.latitude})"
+            contains_result = await db.execute(
+                select(
+                    geo_func.ST_Contains(
+                        depot.geofence,
+                        sa_func.ST_GeomFromText(point_wkt, 4326),
+                    )
+                )
+            )
+            is_inside = contains_result.scalar()
+            dist = _haversine_m(body.latitude, body.longitude, depot.latitude, depot.longitude)
+        else:
+            # Fallback to haversine radius check
+            dist = _haversine_m(body.latitude, body.longitude, depot.latitude, depot.longitude)
+            is_inside = dist <= depot.geofence_radius_m
+
+        if is_inside:
             # Vehicle is inside this depot's geofence
             alert_type = None
 

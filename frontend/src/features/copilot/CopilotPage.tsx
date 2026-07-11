@@ -83,10 +83,19 @@ export function CopilotPage() {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold text-slate-800 dark:text-white">Fleet AI Copilot</h2>
+              {copilotMode === "demo" ? (
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/30">
+                  Demo Mode
+                </span>
+              ) : (
+                <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/30">
+                  Live
+                </span>
+              )}
             </div>
             <p className="text-[10px] text-slate-500 dark:text-slate-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse-dot" />
-              Online
+              <span className={`w-1.5 h-1.5 rounded-full ${copilotMode === "demo" ? "bg-amber-500" : "bg-emerald-500 animate-pulse-dot"}`} />
+              {copilotMode === "demo" ? "Pattern-matching responses" : "AI-powered responses"}
             </p>
           </div>
         </div>
@@ -193,7 +202,9 @@ export function CopilotPage() {
           </div>
         </div>
         <p className="text-center text-[10px] text-slate-400 mt-2">
-          Fleet AI Copilot
+          {copilotMode === "demo"
+            ? "Demo Mode — Pattern-matching responses (not AI-generated)"
+            : "Fleet AI Copilot"}
         </p>
       </div>
     </div>

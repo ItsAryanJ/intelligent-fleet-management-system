@@ -4,7 +4,7 @@ Authentication router — login, refresh, logout, profile.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -17,6 +17,7 @@ from app.features.auth.schemas import (
     UserProfileResponse,
 )
 from app.features.auth.service import AuthService
+from app.core.security import decode_token, deny_token
 
 router = APIRouter()
 
@@ -42,8 +43,23 @@ async def refresh_token(
 
 
 @router.post("/logout")
-async def logout():
-    """Logout — client should discard tokens."""
+async def logout(request: Request):
+    """Logout — revoke the current access token server-side.
+
+    The token's JTI is added to an in-memory denylist so it cannot
+    be reused. The denylist is cleared on server restart, but tokens
+    also have short expiry (30 min for access tokens).
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+        try:
+            payload = decode_token(token)
+            jti = payload.get("jti")
+            if jti:
+                deny_token(jti)
+        except (ValueError, Exception):
+            pass  # Token already expired or invalid — logout succeeds regardless
     return {"message": "Logged out successfully"}
 
 

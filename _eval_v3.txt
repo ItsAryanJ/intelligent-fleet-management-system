@@ -1,0 +1,296 @@
+--- PAGE 1 ---
+PROJECT EVALUATION · ITERATION 3
+NCRTC Bus Management System
+Evaluated against the NCRTC BMS Student PRD (Lite v1.0) · Repository
+github.com/ItsAryanJ/intelligent-fleet-management-system
+Evaluated 7 July 2026 · HEAD d36ea82 (6-Jul) · Method: 16-agent adversarial code review with
+DB→API→UI wiring verification
+OVERALL SCORE V3
+7.6/10
+vs v2  6.7 → +0.9
+Trajectory 4.46.77.6Seams stitched, publish
+snapped
+All three of v2's highest-leverage fixes landed and are
+genuinely wired end-to-end — the AVLS history/replay
+page, the week-roster grid with a live Publish, and geo-
+tagged panic feeding a full incident lifecycle. What
+holds v3 back is narrower and sharper: one high-
+visibility dead-end in CMS, a still-orphaned must-have,
+and no tests or CI at HEAD.
+HOW THIS WAS SCORED
+Sixteen agents read the current source — not the README's claims — each tracing whether a
+requirement is genuinely wired end-to-end (database model → API route → frontend call →
+rendered component with a real handler) versus stubbed, orphaned, decorative, or missing. A
+regression sweep re-checked every v2 residual gap; adversarial verifiers were told to refute
+each module's headline claim by default. The PRD's exact rubric weights were then applied
+and any requirement flagged fake was discounted rather than credited from the README.
+Findings were reconciled against independent manual spot-checks of the load-bearing claims.
+Graded as an MVP-depth student capstone, with fair partial credit for honest partials.
+→
+→
+
+--- PAGE 2 ---
+01RUBRIC BREAKDOWN
+CATEGORYWEIGHTV2V3RATIONALE
+Functional
+completeness40%6.57.1Four of five modules now trace end-to-end. AVLS (live WS +
+real replay), IMS (6-state workflow + geo-panic + assign) and
+Scheduling (week grid + wired Publish) genuinely closed their
+v2 gaps; auth + depot scoping stay broad and real. CMS drags:
+targeting is fixed, but create→publish is a functional dead-end
+and the must-have read-receipt roster is orphaned. Route
+ordered-stops/arrival editor and route delete are still absent.
+Code quality
+& structure15%6.56.8Clean feature-sliced routers, a typed exception hierarchy
+behind one structured handler, and a genuinely good GPS
+simulator (haversine, deadlock retry, deterministic lock order).
+Offset by ~2× scope bloat (20 tables / 18 routers vs the Lite
+PRD's 11), config.py printing the DB URL incl. password on
+every load, an unguarded weak default SECRET_KEY, dead RBAC
+permission tables, and an orphaned geofence router.
+UI / UX
+& mobile15%6.57.2Real ref-based Leaflet maps, a functional replay scrubber with
+speed controls, a genuine 7×4 week grid, and an incident
+drawer with status-gated buttons and a required-notes field.
+The wiring is real, not decorative. Docked below 8 for a thin live
+side-panel (no driver/route/trailing polyline), client-only status
+filters, and no deliberate mobile/responsive work on a driver-
+facing product.
+Documentation
+& deliverables10%6.56.8ARCHITECTURE.md with 9 Mermaid diagrams, plus API /
+DATABASE / DOCKER docs and wired Swagger + ReDoc;
+README credentials match the seed exactly. Penalized for a
+fabricated backend/tests/ directory in the README, a broken
+Quick Start (cd test1 into a nonexistent dir), a vestigial
+Alembic dependency with no migrations, and zero screenshots
+or demo video.
+Demo &
+presentation15%6.07.0Scored code-only (no live demo/video available). A fresh clone
+would largely run: docker-compose is genuinely health-gated
+(db → backend → frontend via service_healthy), the seed is
+idempotent, nginx proxies API + WS, and every scripted demo
+route exists. Hit by the broken README cd step (manual fix
+needed), a Dockerfile seed that swallows errors, and the copilot
+presented as live AI.
+Honesty &
+judgment5%5.06.0The headline v2 dishonesty is genuinely fixed: /system/health
+now runs real DB / WS / simulator / psutil probes, the redis
+fabrication is gone, and the copilot is honestly typed
+mode='demo' server-side. Residual: that caveat is captured into
+dead copilotMode state and never rendered while the UI
+markets "Fleet AI Copilot / Online"; Alembic is phantom; the
+README fabricates a tests/ dir and the added CI test.yml
+was deleted in the final commit.
+Weighted total:(7.1×.40)+(6.8×.15)+(7.2×.15)+(6.8×.10)+(7.0×.15)+(6.0×.05) ≈ 6 . 9 7
+base, +0.65 net stretch credit (WebSocket + trip replay full, SLA partial) = 7.6 / 10. Demo
+assumption: no live demo or video available; the category was judged purely on whether a fresh
+clone would run the scripted PRD demo flow.
+
+--- PAGE 3 ---
+02PER-MODULE SCORES
+MODULE
+(PRD)V2V3END-TO-END?ASSESSMENT
+Auth & Roles
++ depot scoping87.5YesStill the foundation. Real bcrypt, DB-backed login, working
+access + refresh with a genuine 401 frontend interceptor,
+consistent server-side depot scoping across ~13 routers. The
+GET /routes leak is only partly closed (still exposed to
+driver/conductor). Persistent gaps drop it slightly: dead RBAC
+permission tables (static map baked into the JWT), no per-
+request DB re-validation, unguarded weak default
+SECRET_KEY, no-op backend logout.
+AVLS
+Live Map & History68YesThe biggest jump — v2 gap (a) fully closed. HistoryPage.tsx
+is real, routed at /avls/history, nav-linked, and calls the
+previously-orphaned /gps/history + /trip-analytics; it
+draws segmented day polylines with a working play / pause /
+scrub + 1×–10× replay. The live map is real WebSocket
+animation end-to-end. Shortfalls: depot filter is client-side
+only, and the marker side-panel omits driver / route / trailing
+polyline.
+IMS
+Incidents68Yesv2 gaps (c) and (d) fixed. Panic hits the dedicated
+/incidents/panic with real navigator.geolocation and a
+graceful fallback; a full 6-state machine
+(OPEN→ACK→ASSIGNED/IN PROGRESS→RESOLVED→CLOSE
+D) is enforced by server-side VALID_TRANSITIONS; manager
+assign is wired with a permission gate; resolve enforces
+notes. Real SLA compute + dashboard. Residual: photo
+upload is absent (FileUpload has zero importers) and notes
+are enforced only on resolve.
+Scheduling
+Routes & Duties5.57Partialv2 gap (b) fixed: a genuine 7-day × 4-shift week grid with
+navigation; the Publish button invokes POST /duties/publish
+(flips DRAFT→PUBLISHED and emits notifications) —
+publishMutation is no longer dead. Acknowledge writes a
+real timestamp. Residual: the purpose-built GET
+/duties/roster is itself orphaned (the page uses /duties);
+no ordered-stops / arrival editor; no route delete; double-
+booking is detected post-hoc, not prevented.
+CMS
+Notices55.5PartialTargeting is genuinely fixed end-to-end for ALL / ROLE /
+DEPOT (form → POST → _can_view_notice feed filter). But
+two blockers keep it near flat: (1) create→publish is a dead-
+end — new notices default is_published=False, yet the
+admin page fetches /notices/feed which returns only
+published rows, so the draft never appears and its Publish
+button can never render; (2) the must-have read-receipt
+roster (/notices/{id}/readers) is orphaned — the UI shows
+only an aggregate count.
+
+--- PAGE 4 ---
+03WHAT WORKS & WHAT REMAINS
+▲ Verified working end-to-end ▼ What remains (holds it off 8+)
+Live AVLS map with real WebSocket-driven
+marker animation — JWT-authenticated WS,
+backoff reconnect, rAF slideTo.
+GPS history replay: segmented day
+polylines, start/end markers,
+play/pause/skip/scrub, 1×–10× speed, trip
+analytics.
+IMS full lifecycle: geo-tagged panic,
+ack/assign/in-progress/resolve/close with
+transition guards, required resolve notes,
+live SLA dashboard.
+Scheduling week grid with navigation,
+wired Publish (DRAFT→PUBLISHED +
+notifications), real acknowledged_at
+timestamps.
+Auth: real bcrypt, DB-backed login,
+access+refresh with a working 401 retry
+interceptor, broad server-side depot
+scoping.
+Health-gated compose, idempotent seed,
+README credentials matching the seed, an
+honest real-probe /system/health.CMS publish dead-end — created notices
+default unpublished but the feed returns
+only published, so the Publish button never
+renders and drafts vanish from the UI.
+Read-receipt roster (a PRD must-have) still
+absent — /notices/{id}/readers
+orphaned; only an aggregate count shows.
+No tests, no CI — the added test.yml and
+test_e2e.py were deleted in the final
+commits; the README still fabricates a
+backend/tests/ dir.
+Phantom Alembic — dependency only;
+schema still built at runtime via create_all.
+Copilot honesty — demo caveat never
+reaches the UI (dead state) while marketed
+as live "Fleet AI Copilot / Online".
+Scheduling depth — no ordered-stops /
+planned-arrival editor, no route delete;
+double-booking detected post-hoc.
+Orphaned bloat — geofence router (4
+endpoints), GET /duties/roster, incident
+photo upload — all with zero callers.
+
+--- PAGE 5 ---
+04V2 → V3 PROGRESS & REGRESSION SWEEP
+Each known v2 residual gap, re-traced DB→API→frontend against the current source. No regressions
+detected.
+GAPV2 RESIDUAL
+DEFECT V3 STATUSEVIDENCE
+aAVLS history/replay
+page entirely absent on
+the frontend (orphaned
+/gps/history, /trip-
+analytics)Fixed HistoryPage.tsx routed at App.tsx:64, nav-linked,
+calls both endpoints, renders replay scrubber +
+segmented polylines.
+bRoster a single-date
+card list, not a weekly
+grid; Publish dead
+(publishMutation
+never invoked, POST
+/publish orphaned)Fixed RosterPage.tsx is a 7-day × 4-shift grid; Publish
+invokes POST /duties/publish → flips status + emits
+notifications.
+cPanic posted the
+generic /incidents
+and captured no
+locationFixed DriverDashboard.tsx → POST /incidents/panic with
+navigator.geolocation; backend router.py:281
+dedicated endpoint.
+dIncident status
+workflow collapsed to
+Open→Resolved;
+manager assign
+orphaned; notes not
+enforcedFixedServer-side VALID_TRANSITIONS 6-state machine;
+assign wired with permission gate; resolve enforces
+notes.
+eCMS could only target
+ALL; role/depot
+targeting broken; read-
+receipt roster (must-
+have) absentPartialTargeting fixed E2E via _can_view_notice. But the
+publish path dead-ends and the read-receipt roster is
+still orphaned.
+f/system/health
+hardcodes
+redis/websocket
+"active"; copilot 200-
+on-error; "demo mode"
+caveat never reaches UIPartialHealth now runs real probes; redis fabrication removed;
+copilot honestly typed server-side. But the demo caveat
+still never renders in the UI.
+gShallow smoke tests
+that skip; no CIStill brokentest.yml + test_e2e.py added then deleted in the
+final commits; no .github/workflows at HEAD;
+README still fabricates tests/.
+hAlembic migrations
+referenced but absentStill brokenDependency present but no versions/; schema still
+built via create_all at runtime.
+idocker compose up
+seeding reliabilityFixedExistence-guarded idempotent seed; compose health-
+gated across db → backend → frontend.
+5 Fixed2 Partial2 Still broken0 Regressions
+
+--- PAGE 6 ---
+05STRETCH CREDIT
+STRETCH ITEMAVAILABLEV2V3REASON
+WebSocket live
+updates+3% EarnedEarnedReal end-to-end: simulator broadcast → WS
+/gps/stream (4001 auth) → useGPSSocket
+CustomEvent → rAF slideTo marker animation. Full
+credit.
+Geofence
+breach
+detection+3% DeniedDeniedThe geofence / route-deviation router (4 endpoints)
+has zero frontend callers — orphaned bloat, no
+breach banner. No credit.
+SLA timers +
+breach alerts+2% EarnedPartialReal per-severity deadline compute and a live
+breached / at-risk / on-track dashboard. Docked
+(+1.5) because the sla_breached badge only
+persists at resolve time.
+Trip replay
+scrubber+2% DeniedEarnedNow a genuine wired replay: segmented polylines,
+start/end markers, a working play/pause/scrub with
+1×–10× speed. Full credit.
+Net stretch credit ≈ +6.5 of 10 possible → contributes ~+0.65 to the /10 score. WebSocket
+and trip replay are full; SLA partial; geofence denied.
+06HIGHEST-LEVERAGE FIXES (TO REACH 8+)
+FAIRNESS NOTE
+Graded as a student capstone against the deliberately scoped-down, MVP-depth Lite PRD — not a
+production system. Rubric weights were applied exactly as specified (Functional 40 / Code 15 / UI 15 /
+Docs 10 / Demo 15 / Honesty 5). Functional completeness was weighted heaviest; honest partial
+implementations received fair partial credit, and any requirement the adversarial verifier flagged as
+stubbed, orphaned, or fabricated was discounted rather than credited from the README. Demo &
+presentation was scored from code-only demoability evidence — that assumption is stated and is the
+primary residual constraint on that category. v2 was graded at HEAD 33b1231 (26-Jun); v3 reflects HEAD
+d36ea82 (6-Jul), five feature commits later.
+NCRTC BMS — Project Evaluation v3 Final Score 7.6 / 10 · v1 4.4 → v2 6.7 → v3 7.6 · Generated 7 July 2026Fix the CMS publish path — set is_published on create, or point the admin list at GET
+/notices (which returns drafts) so the create→publish flow and the Publish button become
+reachable end-to-end. The cheapest single win.1
+Wire the read-receipt roster — call GET /notices/{id}/readers in NoticeDetailDrawer to
+render who read/acknowledged vs still-unread. Closes the last must-have.2
+Restore real tests + CI — re-add test.yml and a genuine backend suite with assertions; remove
+the fabricated tests/ claim from the README.3
+Surface the copilot demo caveat in the UI (render copilotMode as a badge) and stop labeling it
+"Online AI".4
+Close the route leak — add a ROUTE_VIEW gate + universal depot filter so driver/conductor stop
+receiving all depots' routes; guard the default SECRET_KEY at startup.5
+Add the ordered-stops + planned-arrival editor for routes (schema exists, no endpoint/UI) to
+close the last core Scheduling gap; fix the README cd test1 target.6

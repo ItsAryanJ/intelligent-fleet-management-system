@@ -163,16 +163,36 @@ async def seed_database():
         print("🏢 Creating depots...")
         depot_map = {}
         for d in DEPOT_DATA:
+            # Generate PostGIS geometries from lat/lon/radius
+            import math
+            lat, lon, radius_m = d["lat"], d["lon"], d["radius"]
+            # WKT POINT
+            wkt_point = f"POINT({lon} {lat})"
+            # Approximate circular POLYGON (32 vertices)
+            # Convert radius from meters to approximate degrees
+            lat_deg = radius_m / 111320.0
+            lon_deg = radius_m / (111320.0 * math.cos(math.radians(lat)))
+            n_pts = 32
+            coords = []
+            for i in range(n_pts + 1):
+                angle = 2 * math.pi * (i % n_pts) / n_pts
+                px = lon + lon_deg * math.cos(angle)
+                py = lat + lat_deg * math.sin(angle)
+                coords.append(f"{px:.7f} {py:.7f}")
+            wkt_polygon = f"POLYGON(({', '.join(coords)}))"
+
             depot = Depot(
                 name=d["name"], code=d["code"], city=d["city"],
                 latitude=d["lat"], longitude=d["lon"],
                 geofence_radius_m=d["radius"], address=f"{d['city']}, Uttar Pradesh",
+                location=wkt_point,
+                geofence=wkt_polygon,
             )
             db.add(depot)
             await db.flush()
             depot_map[d["code"]] = depot
         depots = list(depot_map.values())
-        print(f"   ✅ {len(depots)} depots created")
+        print(f"   ✅ {len(depots)} depots created (with PostGIS POLYGON geofences)")
 
         # ── 3. Users ─────────────────────────────────────────────────
         print("👤 Creating users...")

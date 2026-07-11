@@ -1,0 +1,401 @@
+--- PAGE 1 ---
+IMPROVEMENT ROADMAP · COMPANION TO EVALUATION V3
+The Path to 9.5+
+NCRTC Bus Management System · Repository github.com/ItsAryanJ/intelligent-fleet-management-
+system · HEAD d36ea82
+A code-grounded plan to lift the project from its v3 score of 7.6/10 to 9.5+ · Prepared 7 July 2026 ·
+Derived from a 12-agent deep-dive across all four modules, auth, code, UI, docs, honesty and stretch
+TARGET TRAJECTORY
+7.6→9.6/10
++2.0 · achievable in ~4
+focused weeksIt's wiring and honesty, not new
+build.
+The codebase already contains ~90% of every remaining
+must-have — a draft-inclusive notices list, a read-receipt
+roster, a geofence endpoint, an SLA calculator, a
+FileUpload component, a /duties/roster route, a
+depot-scoped WebSocket, an executive PDF — but
+leaves them orphaned, mis-wired, or fabricated in the UI.
+The distance to 9.5+ is closing dead-ends and telling the
+truth, not writing a new system.
+THE ARITHMETIC IS FORGIVING
+A maxed stretch bonus is worth ~+1.0 to the final /10, and WebSocket (+3) + trip-replay (+2)
+= +5 are already banked. So an overall 9.5 needs only a core-weighted ~8.6 once geofence
+(+3) and SLA (+2) are recovered. The three real risks: a geofence implementation contradiction
+that must collapse to a single ST_Contains + seeded-polygon + corrected-exit-breach path
+(radius circles are exactly what got DENIED); the absent dedicated Auth/RBAC track that
+otherwise caps Functional near 9.2; and the demo video being the tail dependency of every
+module fix — so it must be recorded last.
+
+--- PAGE 2 ---
+01THE SCORING MODEL — HOW THE MATH CLEARS 9.5
+CATEGORY WEIGHTV3 NOWTARGETKEY MOVES THAT EARN ITΔ /10
+Functional 40%7.19.2Dedicated Auth/RBAC track
+(fix GET /routes leak, real
+logout, per-request re-
+validation) lifts Auth
+7.5→9.3; CMS publish +
+read-receipt wired (5.5→9);
+server-side double-booking
+409 + ordered-stops editor
+(Sched 7→9.4); photo
+evidence + notes-on-every-
+transition + continuous SLA
+(IMS 8→9.4); server-side
+depot filter + full side-panel
+(AVLS 8→9.3).+0.84
+Code quality 15%6.89.3Kill the password-leaking
+print + guard SECRET_KEY;
+collapse 52 copy-paste
+depot-scope blocks into
+one shared dependency
+(gated behind a regression
+test) which also fixes the
+routes leak; resolve the
+geofence router (not
+delete); de-orphan
+FileUpload/StateDisplays;
+one exception envelope; a
+real Alembic baseline.+0.38
+UI/UX & mobile 15%7.29.4Installable PWA (manifest +
+service worker) with an
+offline driver duty view and
+a 320px bottom nav (44px
+targets, safe-area); wire the
+dead StateDisplays + add
+isError/retry branches; an
+accessibility pass (focus-
+visible, aria, keyboard-
+reachable cards, reduced-
+motion); expose the pagers
+where server paging
+already exists.+0.33
+Documentation 10%6.89.5Fix the fresh-clone Quick
+Start (cd test1 → real dir);
+remove the fabricated
+tests/ + phantom-
+Alembic claims; an honest
+module-status table + a
+"Real vs Simulated vs
+Seeded" section + a
+Demo→Production delta
+appendix; embedded+0.27
+
+--- PAGE 3 ---
+CATEGORY WEIGHTV3 NOWTARGETKEY MOVES THAT EARN ITΔ /10
+screenshots; a right-sized
+architecture note reconciled
+to HEAD.
+Demo & presentation15%7.09.4A fail-loud seed so a green
+container means a
+demoable system; a
+flawless git clone &&
+docker compose up; a
+scripted 10-min DEMO.md
+mapped to the PRD flow;
+recorded last, after every
+module fix lands, so no beat
+is a dead-end.+0.36
+Honesty & judgment5%6.09.5Render the copilot demo-
+mode badge + wire
+response.mode to
+settings.COPILOT_MODE
+(structural, can't desync); a
+truthful logout; delete the
+password print; correct the
+"real-time tracking"
+overclaim; a committed no-
+fabricated-states audit; a
+Demo→Prod slide that
+weaponises transparency.+0.18
+Stretch (bonus)≤+10%6.59.5Bank WebSocket + trip-
+replay (+5) with regression
+tests; recover Geofence
+DENIED→FULL (+3) via one
+seeded-polygon
+ST_Contains + exit-breach
++ map/banner consumer;
+SLA PARTIAL→FULL (+2)
+via a 60s persisting
+sweeper + computed-on-
+read.+0.30
+Weighted math: core categories → (9.2×.40)+(9.3×.15)+(9.4×.15)+(9.5×.10)+(9.4×.15)+
+(9.5×.05) ≈ 9 . 3 2, plus a near-maxed stretch bonus ≈ +0.28 incremental → ≈ 9.6 / 10. Even in
+the conservative case where geofence lands only partial, the banked +5 and SLA→FULL still
+clear 9.5.
+
+--- PAGE 4 ---
+02THE TEN HIGHEST-LEVERAGE MOVES— in order
+Reconcile geofence to ONE
+implementation and recover the DENIED +3:
+seed Depot.geofence polygon, swap
+haversine for ST_Contains, fix
+Route.stops→route_stops, flip to the exit-
+breach condition, then wire the map-polygon
++ banner consumer.1 Fix the CMS create→publish dead-end:
+point NoticesPage at GET /notices with
+Draft/Published tabs so drafts appear and
+the existing Publish button renders —
+unblocks the module's headline flow and the
+demo climax.2
+Stand up the absent Auth/RBAC track: fix
+the GET /routes ?depot_id cross-depot
+leak, add per-request permission re-
+validation (or delete the 3 dead RBAC
+tables), token-denylist logout, SECRET_KEY
+guard, delete the password print.3 Add the 60s SLA sweeper that persists
+sla_breached + computed-on-read: SLA
+PARTIAL→FULL (+2).4
+Wire the orphaned read-receipt rosterGET
+/notices/{id}/readers with server-resolved
+recipients and an N-of-M progress bar (a
+MUST-HAVE with zero callers today).5 Render the copilot demo-mode badge and
+wire response.mode to
+settings.COPILOT_MODE — kill the hardcoded
+"Online" fabrication that is fatal on stage.6
+Write the real pytest suite on
+Postgres+PostGIS (auth, RBAC, depot-
+scoping RED-first, incident state machine,
+notice targeting, geofence, SLA) + a GitHub
+Actions CI that runs it — replaces the
+fabricated tests/ claim.7 De-orphan FileUpload: fix the uploads
+route-order bug and wire photo evidence
+into the IMS drawer and attachments into
+notices.8
+Ship the ordered-stops / planned-arrival
+route editor (drag-reorder, per-stop offsets)
++ server-side double-booking 409 + wire
+/duties/roster — completes Scheduling
+and unblocks AVLS on-time/late.9 Make the fresh clone flawless (README
+cd path, fail-loud seed, Alembic-or-honest-
+docs) and record the scripted 10-min demo
+video last, after every upstream fix lands.10
+
+--- PAGE 5 ---
+03THE SEQUENCED ROADMAP
+P0 · Fix the dead-ends & correctness3–4 DAYS → 8.4
+Every headline flow reaches its endpoint; every glaring security / fabrication smell gone; geofence
+reconciled to one honest implementation. No must-have is a dead button after this phase.
+LCollapse geofence to ONE implementation — seed Depot.geofence POLYGON +
+ST_Contains + corrected exit-breach (recovers DENIED +3)
+seed.py:169 (only sets radius, polygon NULL) · geofence/router.py (fix
+Route.stops→route_stops L242, replace haversine with ST_Contains, flip to own-
+vehicle-left-home-polygon) · models.py:177
+IMPACTGeofence DENIED→FULL (+3, the single biggest lever); Code +0.3 as an orphaned+broken
+router becomes live.
+SFix the CMS create→publish dead-end — split NoticesPage onto GET /notices with
+Draft/Published tabs + a working Publish
+NoticesPage.tsx:27 queries /notices/feed so drafts never appear and Publish L113–120
+never renders · backend GET /notices + POST /notices/{id}/publish already work
+IMPACTCMS 5.5→~7.5; unblocks the module's headline PRD flow and the demo climax.
+MDedicated Auth/RBAC hardening — fix the GET /routes cross-depot leak, guard
+SECRET_KEY, kill the password print, real logout
+routes/router.py:116–119 (scope applied only when no depot_id param → driver passes ?
+depot_id=other) · config.py:35/96 · auth/router.py:44–47 (no-op logout claims
+success)
+IMPACTAuth 7.5→8.5; Honesty (removes secret leak + false success). The absent track the
+critique flagged as the biggest weighted drag.
+SRender the copilot demo badge + wire response.mode to settings.COPILOT_MODE
+CopilotPage.tsx:26/34 (copilotMode captured, never rendered) & L89 (hardcoded
+'Online') · copilot/router.py stamp resp.mode
+IMPACTHonesty 6.0→~8; kills the one fabrication fatal on stage. Structural, so it can never
+desync.
+MFix the uploads route-order bug + wire FileUpload into the IMS incident drawer
+(photo evidence)
+uploads/router.py (move /list above /{file_id}) · FileUpload.tsx L28 (wrong list URL)
+· IncidentDetailDrawer.tsx (zero importers today)
+IMPACTIMS photo-evidence must-have absent→done; de-orphans FileUpload (Code).
+MServer-side double-booking prevention (409) + wire /duties/roster; fail-loud
+Dockerfile seed; fix README cd test1
+duties/router.py create_duty+bulk_assign (add _assert_no_conflict) · RosterPage N+1 →
+/duties/roster · Dockerfile:27 (|| echo swallows failure) · README.md:128
+IMPACTScheduling double-booking Partial→Full; Demo (green container = demoable); Docs first
+command works.
+
+--- PAGE 6 ---
+P1 · Close ALL must-haves end-to-end4–5 DAYS → 9.0
+Every PRD must-have across all four modules + Auth is wired, enforced and non-orphaned;
+continuous SLA; complete side-panels.
+MContinuous SLA sweeper (60s) persisting sla_breached + computed-on-read
+incidents/router.py:481 (breach only stamped at resolve) · _incident_to_dict:608 ·
+main.py lifespan (add sla_sweeper task like gps_simulator)
+IMPACTStretch SLA PARTIAL→FULL (+2); the badge finally fires on live overdue incidents.
+MWire the read-receipt roster GET /notices/{id}/readers — recipient-resolved N-of-M
++ acknowledgement_required column
+notices/router.py:312 (orphaned, no denominator) · NoticeDetailDrawer.tsx (only
+aggregate count today) · models.py Notice (+acknowledgement_required)
+IMPACTCMS read-receipt MUST-HAVE Partial→Full; de-orphans the endpoint.
+LOrdered-stops / planned-arrival-times route editor (drag-reorder + per-stop offsets)
+consuming the dead RouteStopAssign schema
+routes/router.py (add PUT /{id}/stops) · new RouteStopsEditor.tsx using framer-motion
+Reorder (already a dep)
+IMPACTScheduling marquee must-have; also unblocks AVLS real on-time/late detection.
+MComplete AVLS — server-side depot filter param + side-panel driver/route/last-30-
+min polyline; require notes on EVERY IMS transition
+AVLSPage.tsx (passes zero params to /gps/live, client-side filter L156) ·
+gps/router.py (today's-Duty join + /gps/live-trail) · incidents/router.py
+acknowledge/assign/start/close (notes optional today)
+IMPACTAVLS side-panel + scoping must-haves; IMS audit-trail accountability.
+MPer-request permission re-validation (close the JWT-baked-permissions weakness)
+OR delete the 3 dead RBAC tables + route delete + copy-week
+dependencies.py:55 get_current_user · models.py:189–229
+(Role/PermissionModel/RolePermission never queried) · routes/router.py (guarded soft-
+delete) · duties (copy-week)
+IMPACTCloses the last Auth defect; retires scope bloat; completes Scheduling CRUD.
+MWire the dead StateDisplays + add missing isError/retry branches across 6+ list
+pages
+shared/StateDisplays.tsx (zero importers) ·
+IncidentsPage/NoticesPage/DutiesPage/RosterPage/UsersPage/VehiclesPage (raw skeleton,
+no error branch)
+IMPACTUI consistency; removes the dead-component penalty; failures stop looking like empty
+screens.
+
+--- PAGE 7 ---
+P2 · Excellence & stretch-max4–5 DAYS → 9.5
+Real tests + CI proving every invariant; the stretch bucket maxed and protected; a11y + PWA polish;
+one canonical error / scope / schema mechanism.
+LReal pytest suite on Postgres+PostGIS — auth, RBAC, depot-scoping, incident state
+machine, notice targeting, geofence ST_Contains, SLA + trip-replay
+new backend/tests/ + conftest with a postgis service · write the depot-scoping test
+RED FIRST to guard the routes-leak fix and the 52-site refactor
+IMPACTCode +0.8, Honesty +0.6 (replaces the fabricated tests/ claim); protects every stretch
+claim.
+MGitHub Actions CI (postgis service) — backend pytest + ruff + frontend
+build/tsc/vitest on every push
+new .github/workflows/ci.yml (none exists at HEAD) · README CI badge
+IMPACTCode +0.7, Honesty +0.4; a green badge on a fresh clone.
+LCollapse 52 copy-paste depot-scope blocks into one shared dependency, GATED
+behind the now-green depot-scope test
+new core/dependencies.scope_to_depot · 13 routers · sequence AFTER the regression
+test exists
+IMPACTCode +0.4; unbypassable scoping. Do NOT ship blind pre-demo.
+LInstallable PWA (manifest + SW) + offline driver duty view + 320px bottom nav +
+a11y pass
+index.html · vite.config.ts · main.tsx · AppShell.tsx · DriverDashboard.tsx ·
+index.css
+IMPACTUI +0.8 (credit to UI/Demo, NOT the stretch axis); the mobile-first bar + a11y examiner
+probe.
+LAlembic baseline capturing the new CMS columns + geofence polygon; keep
+create_all as the Docker path until proven on a fresh PostGIS clone
+backend/alembic/ (phantom today) · Dockerfile CMD (do NOT flip to upgrade head until
+geoalchemy2 Geometry autogen verified)
+IMPACTCode +0.4, Honesty +0.5; removes phantom-Alembic. Must include
+acknowledgement_required / title_hi / content_hi or a fresh clone drifts.
+MStandardise on the custom-exception envelope (zero raw HTTPException); unify
+geofence/SLA/route-deviation over the existing broadcast as one Ops-Alerts stream
+uploads/router.py (8 raw HTTPException) · copilot inline import · websocket.py
+envelope + OpsAlertsToaster
+IMPACTCode +0.2; makes the WebSocket stretch visibly load-bearing across 3 modules, not just
+dot-moving.
+
+--- PAGE 8 ---
+P3 · Deliverables & flawless demo1–2 DAYS → 9.6
+Fresh-clone perfection, screenshots, honest docs, and a scripted demo video recorded LAST once
+every upstream fix has landed.
+MScreenshots + a scripted 10-min DEMO.md mapped click-for-click to the PRD flow,
+recorded LAST
+new docs/screenshots/ · DEMO.md · the CMS publish + read-receipt climax and
+geofence/SLA beats depend on P0–P2 landing
+IMPACTDemo +1.2 (the largest Demo lever); no beat may be a dead-end per its own acceptance
+test.
+MHonesty docs — "Real vs Simulated vs Seeded" table, honest module-status column,
+a Demo→Production delta appendix/slide, beyond-PRD tables justified
+README.md · ARCHITECTURE.md · reconcile the absolutist "verified against
+implementation" to "reflects HEAD @ <commit>"
+IMPACTHonesty +0.7 (top-of-band, self-drawn demo/prod line), Docs +0.3.
+SEnrich the already-built executive PDF with the new geofence/SLA KPIs + a one-click
+board-pack button; commit a final no-fabricated-states audit
+reports/pdf_generator.py (generate_executive_pdf already exists) ·
+ExecutiveDashboard.tsx
+IMPACTDemo +0.3, Docs +0.3; leverages sunk cost; proves the stretch features feed a real
+artifact.
+
+--- PAGE 9 ---
+04STRETCH TO MAXIMUM— worth ~+1.0 to the final /10
+WebSocket +3 · banked, protect with testsTrip replay +2 · banked, protect with tests
+Geofence +3 · DENIED → recover FULLSLA +2 · PARTIAL → FULL
+Bank the +5 already earned by protecting it with regression tests: a /gps/stream
+connect/close smoke test and a /gps/history test asserting ordered pings and that the
+>200km/h implausible-jump filter fires — otherwise a silent regression quietly costs the +2.
+Recover Geofence (DENIED → FULL, +3) with exactly ONE implementation — the plans
+contradicted each other and the radius-circle path is precisely what got denied: (1) seed
+Depot.geofence as a real POLYGON(srid=4326) (today only geofence_radius_m is set, so the
+polygon column is NULL and every ST_ query returns empty); (2) replace the haversine circle
+test and the broken Route.stops reference with ST_Contains(Depot.geofence,
+ST_SetSRID(ST_MakePoint(lon,lat),4326)); (3) flip the breach condition to the PRD's real
+requirement — a vehicle that has left its home-depot polygon while off-shift, plus unauthorised
+entry — not the inverted "inside a foreign depot" check; (4) build the frontend consumer: draw
+depot polygons from ST_AsGeoJSON and a live red breach banner over the existing WebSocket,
+so a grader visually watches the fence get crossed.
+Take SLA (PARTIAL → FULL, +2) with a 60s lifespan sweeper that persists sla_breached on
+live overdue incidents plus a computed-on-read fallback so the badge is correct between
+sweeps. Route the new geofence/SLA/route-deviation events through the single existing
+gps_manager broadcast so WebSocket reads as load-bearing across three modules, not just
+dot-moving on a map. (PWA and the executive PDF are genuine "wow" but add zero to the
+capped stretch axis — credit them to UI / Demo only, and build the PWA once.)
+
+--- PAGE 10 ---
+05DEFINITION OF DONE — THE 9.5+ CHECKLIST
+Fresh clone:git clone && cd … && docker compose up --build brings up three healthy
+containers and loads the login page with copy-paste-from-README commands and zero edits.✓
+Every must-have end-to-end for its role: AVLS live+history+depot-scope+full side-panel;
+Scheduling routes (incl. delete) + ordered-stops/arrival editor + roster publish + prevented double-
+booking (409); IMS create→ack→assign→in-progress→resolve→close with notes on every step,
+photo evidence and a continuously-correct SLA badge; CMS
+author→draft→publish→feed→read→acknowledge→read-receipt roster.✓
+Zero dead / orphaned / fabricated code: no zero-importer components (FileUpload,
+StateDisplays wired), no orphaned endpoints (/notices/{id}/readers, /duties/roster, /geo/*
+all have callers), no dead state driving a false label (the copilot badge is data-driven), no broken
+paths (geofence Route.stops fixed and ST_Contains-backed).✓
+No security / honesty smells: no DB password in logs, SECRET_KEY refuses the dev default
+outside dev, GET /routes cannot be coerced cross-depot, logout makes no claim it doesn't fulfil,
+and the copilot is honestly labelled demo mode.✓
+Real tests + green CI: pytest on Postgres+PostGIS proves auth, RBAC, depot-scoping, the
+incident state machine, notice targeting, geofence ST_Contains and SLA recompute; frontend
+vitest covers the auth store / PermissionGuard; GitHub Actions runs both on every push with a
+linked badge.✓
+Stretch maxed and protected: WebSocket + trip-replay banked with regression tests, Geofence
+FULL via seeded-polygon ST_Contains + map/banner, SLA FULL via the persisting sweeper —
+arithmetically ~+1.0 to the final /10.✓
+Docs match reality: no fabricated tests/ or phantom-Alembic claims, honest "Real vs Simulated
+vs Seeded" + module-status tables, embedded screenshots, a Demo→Production delta appendix,
+a right-sized architecture note reconciled to HEAD.✓
+A scripted 10-minute demo video, recorded last, walks the full PRD flow click-for-click with no
+dead-end at the CMS-publish / read-receipt climax or the geofence / SLA beats.✓
+
+--- PAGE 11 ---
+06RISKS & MITIGATIONS
+HOW THIS ROADMAP WAS BUILT
+Twelve agents each read the actual source at HEAD d36ea82 and produced concrete, file-level
+improvement plans across the four modules, auth, code quality, UI/UX, docs, honesty and stretch; an
+adversarial critic then pressure-tested whether executing all of it clears 9.5 under the exact rubric
+weights and corrected the cross-dimension sequencing; a synthesis pass built the scoring model and
+phased plan. Effort sizes: S < half a day, M ~1–2 days, L ~3–5 days. Scores are calibrated to the same
+MVP-depth Lite-PRD bar used in the v1→v2→v3 evaluations. The plan deliberately favours wiring and
+fixing existing backend work over new build — which is why +2.0 is realistic in roughly four focused
+weeks.
+NCRTC BMS — Roadmap to 9.5+ · Companion to Evaluation v3 7.6 → 9.6 target · Generated 7 July 2026The geofence contradiction is the single biggest swing lever. If the radius-circle path ships it
+stays DENIED (it is exactly what a grader rejected as "wrong condition / orphaned") and the frontend
+gets wired to the wrong contract. Mitigation: reconcile to the seeded-POLYGON + ST_Contains +
+exit-breach path before building the banner/polygon consumer.
+No owner for Auth/RBAC end-to-end caps Functional at ~9.2–9.3 (Auth is a 7.5 component of the
+40% axis). Mitigation: the dedicated P0/P1 Auth track; if it slips, overall still clears 9.5 on stretch +
+Docs + Honesty but with thin margin.
+New CMS columns + the geofence polygon rely on runtime create_all and are in no migration.
+Flipping the Dockerfile to alembic upgrade head before the baseline captures them boots a fresh
+clone without those columns. Mitigation: author the baseline AFTER those columns land, and keep
+create_all as the Docker path until the migration is proven on a fresh PostGIS clone.
+The 52-site depot-scope refactor is high regression risk across 13 routers immediately pre-
+demo — and it is the mechanism that fixes the routes leak. Mitigation: land the RED-first depot-
+scoping regression test before the refactor and gate the refactor behind it; do not ship blind.
+The demo video is the tail dependency of the entire programme — its CMS climax and
+geofence/SLA beats require every module fix landed. Mitigation: record LAST, treat "no dead-end"
+as its acceptance test, keep P0 CMS-publish + P1 read-receipt on the critical path.
+Alembic Geometry-column autogenerate routinely produces a non-applying baseline
+(geoalchemy2 pulls in spatial system tables) — effort is realistically L, not M. Mitigation: hand-edit
+the baseline to CREATE EXTENSION postgis first and verify on an empty PostGIS DB before touching
+the Dockerfile.
+AVLS real on-time/late detection depends on Scheduling's planned-arrival offsets. If that link is
+never wired, both ship an honest speed-only heuristic and each leaves ~0.4 on the table. Mitigation:
+sequence the stop-editor before AVLS operational colouring, or explicitly label "Idle/Moving" to
+preserve honesty.

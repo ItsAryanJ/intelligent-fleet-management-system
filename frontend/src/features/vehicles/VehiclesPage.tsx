@@ -10,6 +10,7 @@ import {
   Bus, Search, Plus, Filter, ChevronRight,
   Fuel, Activity, MapPin, Gauge, MoreHorizontal, Pencil, Trash2,
 } from "lucide-react"
+import { LoadingState, ErrorState, EmptyState } from "@/components/shared/StateDisplays"
 
 const STATUS_COLORS: Record<string, string> = {
   ACTIVE: "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/30",
@@ -37,7 +38,7 @@ export function VehiclesPage() {
   const { toast } = useToast()
   const queryClient = useQueryClient()
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["vehicles", page, search, statusFilter],
     queryFn: async () => {
       const params: any = { page, page_size: 20 }
@@ -129,11 +130,9 @@ export function VehiclesPage() {
 
       {/* Vehicle Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-48 skeleton rounded-xl" />
-          ))}
-        </div>
+        <LoadingState text="Loading vehicles..." rows={4} />
+      ) : isError ? (
+        <ErrorState title="Failed to load vehicles" description="Check your connection and try again." onRetry={() => refetch()} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {vehicles.map((vehicle, idx) => (

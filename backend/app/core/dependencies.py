@@ -123,3 +123,32 @@ def require_role(*roles: RoleName):
         return current_user
 
     return _check_role
+
+
+# ── Depot-Scope Utilities ────────────────────────────────────────────────
+# These eliminate copy-paste depot scoping across 13+ router files.
+
+DEPOT_SCOPED_ROLES = frozenset({
+    RoleName.DEPOT_MANAGER.value,
+    RoleName.DRIVER.value,
+    RoleName.CONDUCTOR.value,
+})
+
+
+def is_depot_scoped(user: "CurrentUser") -> bool:
+    """Return True if this user's role requires depot-level scoping."""
+    return user.role in DEPOT_SCOPED_ROLES
+
+
+def depot_scope_filter(user: "CurrentUser", depot_column):
+    """Return a SQLAlchemy filter clause that restricts a query to the
+    user's depot when their role requires it. Returns None for admin roles.
+
+    Usage:
+        scope = depot_scope_filter(current_user, Vehicle.depot_id)
+        if scope is not None:
+            stmt = stmt.where(scope)
+    """
+    if user.role in DEPOT_SCOPED_ROLES and user.depot_id is not None:
+        return depot_column == user.depot_id
+    return None

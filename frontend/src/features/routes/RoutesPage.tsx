@@ -5,12 +5,13 @@ import api from "@/lib/api"
 import type { Route as RouteType } from "@/types"
 import { RouteFormModal } from "./RouteFormModal"
 import { Route, MapPin, Clock, ArrowRight, Activity, Plus, Pencil } from "lucide-react"
+import { LoadingState, ErrorState, EmptyState } from "@/components/shared/StateDisplays"
 
 export function RoutesPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingRoute, setEditingRoute] = useState<any | null>(null)
 
-  const { data: routes = [], isLoading } = useQuery({
+  const { data: routes = [], isLoading, isError, refetch } = useQuery({
     queryKey: ["routes"],
     queryFn: async () => {
       const res = await api.get("/routes")
@@ -43,9 +44,11 @@ export function RoutesPage() {
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-40 skeleton rounded-xl" />)}
-        </div>
+        <LoadingState text="Loading routes..." rows={3} />
+      ) : isError ? (
+        <ErrorState title="Failed to load routes" description="Check your connection and try again." onRetry={() => refetch()} />
+      ) : routes.length === 0 ? (
+        <EmptyState icon={Route} title="No routes configured" description="Create your first route to get started." />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {routes.map((route, idx) => (

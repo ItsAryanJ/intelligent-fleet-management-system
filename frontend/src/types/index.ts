@@ -186,6 +186,7 @@ export interface GPSPosition {
   last_updated?: string
   fuel_level?: number
   health_score?: number
+  route_name?: string
 }
 
 export interface SearchResult {

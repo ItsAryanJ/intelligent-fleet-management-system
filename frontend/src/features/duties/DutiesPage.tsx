@@ -5,6 +5,7 @@ import api from "@/lib/api"
 import type { Duty } from "@/types"
 import { DutyFormModal } from "./DutyFormModal"
 import { CalendarDays, Bus, User, Route, Filter, ChevronLeft, ChevronRight, Clock, AlertCircle, CheckCircle2, Plus } from "lucide-react"
+import { LoadingState, ErrorState, EmptyState } from "@/components/shared/StateDisplays"
 
 const SHIFT_COLORS: Record<string, string> = {
   MORNING: "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/30",
@@ -25,7 +26,7 @@ export function DutiesPage() {
   const [selectedDate, setSelectedDate] = useState(today)
   const [formOpen, setFormOpen] = useState(false)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["duties", selectedDate],
     queryFn: async () => {
       const res = await api.get("/duties", { params: { duty_date: selectedDate, page_size: 100 } })
@@ -93,9 +94,9 @@ export function DutiesPage() {
 
       {/* Shift Groups */}
       {isLoading ? (
-        <div className="space-y-4">
-          {Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-32 skeleton rounded-xl" />)}
-        </div>
+        <LoadingState text="Loading duties..." rows={3} />
+      ) : isError ? (
+        <ErrorState title="Failed to load duties" description="Check your connection and try again." onRetry={() => refetch()} />
       ) : (
         <div className="space-y-6">
           {Object.entries(shiftGroups).map(([shift, shiftDuties]) => {

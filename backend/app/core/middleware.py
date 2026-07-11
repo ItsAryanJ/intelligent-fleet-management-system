@@ -62,7 +62,22 @@ class TimingMiddleware(BaseHTTPMiddleware):
 
 
 def setup_exception_handlers(app: FastAPI) -> None:
-    """Register global exception handlers."""
+    """Register global exception handlers.
+
+    All errors return a standardized envelope:
+    {
+        "error": {
+            "code": "ERROR_CODE",
+            "message": "Human-readable description",
+            "request_id": "uuid",
+            "timestamp": "ISO-8601"
+        }
+    }
+    """
+    from datetime import datetime, timezone
+
+    def _get_request_id(request: Request) -> str:
+        return getattr(request.state, "request_id", "unknown")
 
     @app.exception_handler(AppException)
     async def app_exception_handler(
@@ -74,6 +89,8 @@ def setup_exception_handlers(app: FastAPI) -> None:
                 "error": {
                     "code": exc.error_code,
                     "message": exc.detail,
+                    "request_id": _get_request_id(request),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             },
             headers=exc.headers,
@@ -84,8 +101,10 @@ def setup_exception_handlers(app: FastAPI) -> None:
         request: Request, exc: Exception
     ) -> JSONResponse:
         logger = logging.getLogger("ncrtc.error")
+        req_id = _get_request_id(request)
         logger.error(
-            "Unhandled exception on %s %s: %s\n%s",
+            "[%s] Unhandled exception on %s %s: %s\n%s",
+            req_id,
             request.method,
             request.url.path,
             str(exc),
@@ -99,6 +118,8 @@ def setup_exception_handlers(app: FastAPI) -> None:
                     "message": "An unexpected error occurred"
                     if not settings.APP_DEBUG
                     else str(exc),
+                    "request_id": req_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             },
         )

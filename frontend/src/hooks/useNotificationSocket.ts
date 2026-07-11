@@ -4,11 +4,6 @@ import { useQueryClient } from "@tanstack/react-query"
 
 type WsStatus = "connecting" | "connected" | "disconnected" | "error"
 
-/**
- * WebSocket hook for real-time notifications.
- * Auto-reconnects with exponential backoff.
- * Invalidates notification queries on new messages.
- */
 export function useNotificationSocket() {
   const [status, setStatus] = useState<WsStatus>("disconnected")
   const wsRef = useRef<WebSocket | null>(null)

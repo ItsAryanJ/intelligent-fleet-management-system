@@ -4,6 +4,8 @@ NCRTC Intelligent Fleet Management Platform — FastAPI Application Factory.
 
 import logging
 
+import asyncio
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -22,10 +24,52 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+logger = logging.getLogger(__name__)
+
+# ── SLA Sweeper Background Task ─────────────────────────────────────────
+_sla_sweeper_task: asyncio.Task | None = None
+SLA_SWEEP_INTERVAL_SECONDS = 60
+
+
+async def _sla_sweeper_loop():
+    """Background task: every 60s, mark any open incident past its sla_deadline as breached."""
+    from datetime import datetime, timezone
+    from sqlalchemy import select, update
+    from app.core.database import async_session_factory
+    from app.models import Incident
+
+    while True:
+        try:
+            await asyncio.sleep(SLA_SWEEP_INTERVAL_SECONDS)
+            async with async_session_factory() as session:
+                now = datetime.now(timezone.utc)
+                stmt = (
+                    update(Incident)
+                    .where(
+                        Incident.is_deleted == False,
+                        Incident.sla_breached == False,
+                        Incident.sla_deadline.isnot(None),
+                        Incident.sla_deadline < now,
+                        Incident.status.in_(["OPEN", "ACKNOWLEDGED", "ASSIGNED", "IN_PROGRESS"]),
+                    )
+                    .values(sla_breached=True)
+                )
+                result = await session.execute(stmt)
+                await session.commit()
+                if result.rowcount > 0:
+                    logger.info(f"SLA Sweeper: marked {result.rowcount} incident(s) as breached")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            logger.error(f"SLA Sweeper error: {e}")
+            await asyncio.sleep(10)  # Brief pause before retrying
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifecycle — startup and shutdown events."""
+    global _sla_sweeper_task
+
     # Startup
     print(f"🚀 Starting {settings.APP_NAME} v{settings.APP_VERSION}")
     await init_db()
@@ -36,9 +80,20 @@ async def lifespan(app: FastAPI):
     await gps_simulator.start()
     print("📡 GPS Simulator started")
 
+    # Start SLA Sweeper
+    _sla_sweeper_task = asyncio.create_task(_sla_sweeper_loop())
+    print(f"⏱️  SLA Sweeper started (interval: {SLA_SWEEP_INTERVAL_SECONDS}s)")
+
     yield
 
     # Shutdown
+    if _sla_sweeper_task:
+        _sla_sweeper_task.cancel()
+        try:
+            await _sla_sweeper_task
+        except asyncio.CancelledError:
+            pass
+    print("⏱️  SLA Sweeper stopped")
     await gps_simulator.stop()
     print("📡 GPS Simulator stopped")
     await close_db()

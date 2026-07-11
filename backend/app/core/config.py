@@ -33,6 +33,7 @@ class Settings(BaseSettings):
 
     # ── Security ─────────────────────────────────────────────────────────
     SECRET_KEY: str = "change-this-to-a-secure-random-string-in-production"
+    _SECRET_KEY_DEFAULT: str = "change-this-to-a-secure-random-string-in-production"
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -93,5 +94,13 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance."""
     settings = Settings()
-    print("DATABASE URL =", settings.database_url)
+    # Guard: refuse weak default SECRET_KEY outside development
+    if (
+        settings.SECRET_KEY == settings._SECRET_KEY_DEFAULT
+        and settings.APP_ENV != "development"
+    ):
+        raise RuntimeError(
+            "FATAL: SECRET_KEY is the insecure default. "
+            "Set a strong SECRET_KEY environment variable for non-development environments."
+        )
     return settings

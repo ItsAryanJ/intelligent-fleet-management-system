@@ -323,7 +323,9 @@ async def acknowledge_incident(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[CurrentUser, Depends(require_permission(Permission.INCIDENT_VIEW))],
 ):
-    """Acknowledge an incident."""
+    """Acknowledge an incident. Notes are required for audit trail."""
+    if not body.notes:
+        raise BadRequestException("Notes are required when acknowledging an incident.")
     stmt = (
         select(Incident)
         .options(selectinload(Incident.reported_by_user))
@@ -412,7 +414,9 @@ async def start_incident(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[CurrentUser, Depends(require_permission(Permission.INCIDENT_VIEW))],
 ):
-    """Mark incident as in-progress."""
+    """Mark incident as in-progress. Notes are required for audit trail."""
+    if not body.notes:
+        raise BadRequestException("Notes are required when starting work on an incident.")
     stmt = (
         select(Incident)
         .options(selectinload(Incident.reported_by_user))
@@ -500,7 +504,9 @@ async def close_incident(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[CurrentUser, Depends(require_permission(Permission.INCIDENT_RESOLVE))],
 ):
-    """Close a resolved incident."""
+    """Close a resolved incident. Notes are required for audit trail."""
+    if not body.notes:
+        raise BadRequestException("Notes are required when closing an incident.")
     stmt = (
         select(Incident)
         .options(selectinload(Incident.reported_by_user))
@@ -582,9 +588,15 @@ async def add_event(
 def _incident_to_dict(i: Incident) -> dict:
     now = datetime.now(timezone.utc)
     sla_remaining = None
-    if i.sla_deadline and i.status not in ["RESOLVED", "CLOSED"]:
+    # Computed-on-read SLA breach: even if the background sweeper hasn't
+    # persisted the breach yet, the API response should be accurate.
+    sla_breached = i.sla_breached
+    status_str = i.status if isinstance(i.status, str) else i.status.value
+    if i.sla_deadline and status_str not in ["RESOLVED", "CLOSED"]:
         remaining = (i.sla_deadline - now).total_seconds()
         sla_remaining = max(0, round(remaining / 60))  # minutes remaining
+        if remaining < 0:
+            sla_breached = True
 
     return {
         "id": str(i.id),
@@ -605,7 +617,7 @@ def _incident_to_dict(i: Incident) -> dict:
         "assigned_to_name": i.assigned_to_user.full_name if i.assigned_to_user else None,
         "sla_deadline": i.sla_deadline.isoformat() if i.sla_deadline else None,
         "sla_remaining_mins": sla_remaining,
-        "sla_breached": i.sla_breached,
+        "sla_breached": sla_breached,
         "resolved_at": i.resolved_at.isoformat() if i.resolved_at else None,
         "created_at": i.created_at.isoformat(),
     }

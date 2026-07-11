@@ -8,8 +8,9 @@ import type { Incident, IncidentEvent } from "@/types"
 import {
   X, Clock, User, Bus, MapPin, Shield, Timer,
   CheckCircle2, AlertTriangle, Send, UserPlus, Loader2,
-  PlayCircle, XCircle,
+  PlayCircle, XCircle, Camera,
 } from "lucide-react"
+import { FileUpload } from "@/components/shared/FileUpload"
 
 interface Props {
   incidentId: string | null
@@ -300,6 +301,20 @@ export function IncidentDetailDrawer({ incidentId, onClose }: Props) {
                 </div>
               )}
             </div>
+
+              {/* Photo Evidence */}
+              <div className="px-5 pb-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <Camera className="w-4 h-4 text-slate-500" />
+                  <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-300">Photo Evidence</h3>
+                </div>
+                <FileUpload
+                  category="incidents"
+                  resourceId={incident.id}
+                  maxFiles={5}
+                  compact
+                />
+              </div>
 
             {/* Action footer — context-aware status transitions */}
             {incident.status !== "CLOSED" && (

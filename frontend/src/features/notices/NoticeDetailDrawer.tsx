@@ -2,14 +2,23 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { motion, AnimatePresence } from "framer-motion"
 import api from "@/lib/api"
 import { useToast } from "@/components/shared/Toast"
+import { useAuthStore } from "@/store/auth"
 import type { Notice } from "@/types"
 import {
-  X, Clock, Eye, CheckCircle2, Megaphone, Loader2, BookOpen,
+  X, Clock, Eye, CheckCircle2, Megaphone, Loader2, BookOpen, Users, User,
 } from "lucide-react"
 
 interface Props {
   noticeId: string | null
   onClose: () => void
+}
+
+interface NoticeReader {
+  user_id: string
+  name: string
+  email: string
+  read_at: string
+  acknowledged_at: string | null
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
@@ -22,6 +31,8 @@ const PRIORITY_COLORS: Record<string, string> = {
 export function NoticeDetailDrawer({ noticeId, onClose }: Props) {
   const { toast } = useToast()
   const queryClient = useQueryClient()
+  const hasPermission = useAuthStore((s) => s.hasPermission)
+  const canPublish = hasPermission("notice.publish")
 
   const { data: notice, isLoading } = useQuery({
     queryKey: ["notice", noticeId],
@@ -30,6 +41,16 @@ export function NoticeDetailDrawer({ noticeId, onClose }: Props) {
       return res.data as Notice
     },
     enabled: !!noticeId,
+  })
+
+  // Fetch readers list — only for publishers
+  const { data: readersData } = useQuery({
+    queryKey: ["notice", noticeId, "readers"],
+    queryFn: async () => {
+      const res = await api.get(`/notices/${noticeId}/readers`)
+      return res.data as { notice_id: string; total_reads: number; readers: NoticeReader[] }
+    },
+    enabled: !!noticeId && canPublish,
   })
 
   const acknowledgeMutation = useMutation({
@@ -78,6 +99,11 @@ export function NoticeDetailDrawer({ noticeId, onClose }: Props) {
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${PRIORITY_COLORS[notice.priority] || PRIORITY_COLORS.NORMAL}`}>
                     {notice.priority}
                   </span>
+                  {!notice.is_published && (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/30">
+                      Draft
+                    </span>
+                  )}
                   {notice.acknowledged_at && (
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
                   )}
@@ -101,9 +127,9 @@ export function NoticeDetailDrawer({ noticeId, onClose }: Props) {
                     : "Draft"
                   }
                 </span>
-                {notice.read_count != null && (
+                {readersData && (
                   <span className="flex items-center gap-1">
-                    <Eye className="w-3 h-3" /> {notice.read_count} reads
+                    <Eye className="w-3 h-3" /> {readersData.total_reads} reads
                   </span>
                 )}
               </div>
@@ -135,9 +161,58 @@ export function NoticeDetailDrawer({ noticeId, onClose }: Props) {
                   )}
                 </div>
               </div>
+
+              {/* Read-Receipt Roster — visible to publishers only */}
+              {canPublish && readersData && (
+                <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Users className="w-4 h-4 text-slate-500" />
+                    <h3 className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Read Receipt Roster ({readersData.total_reads})
+                    </h3>
+                  </div>
+
+                  {readersData.readers.length === 0 ? (
+                    <p className="text-xs text-slate-400 italic">No one has read this notice yet.</p>
+                  ) : (
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {readersData.readers.map((reader) => (
+                        <div
+                          key={reader.user_id}
+                          className="flex items-center gap-3 p-2 rounded-lg bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/50"
+                        >
+                          <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center flex-shrink-0">
+                            <User className="w-3.5 h-3.5 text-slate-500 dark:text-slate-400" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">
+                              {reader.name}
+                            </p>
+                            <p className="text-[10px] text-slate-400 truncate">{reader.email}</p>
+                          </div>
+                          <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                            <span className="text-[9px] text-slate-400">
+                              {new Date(reader.read_at).toLocaleDateString("en-IN", {
+                                day: "numeric", month: "short", hour: "2-digit", minute: "2-digit",
+                              })}
+                            </span>
+                            {reader.acknowledged_at ? (
+                              <span className="flex items-center gap-0.5 text-[9px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                <CheckCircle2 className="w-2.5 h-2.5" /> Acknowledged
+                              </span>
+                            ) : (
+                              <span className="text-[9px] text-slate-400">Read only</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Acknowledge footer */}
+            {/* Acknowledge footer — only for non-publisher consumers */}
             {!notice.acknowledged_at && (
               <div className="sticky bottom-0 p-4 border-t border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-surface-900/90 backdrop-blur-xl">
                 <button
