@@ -2,7 +2,7 @@ name: CI — NCRTC Fleet Management Platform
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, test]
   pull_request:
     branches: [main]
 
