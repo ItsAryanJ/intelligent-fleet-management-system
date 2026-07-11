@@ -16,7 +16,7 @@ from app.core.exceptions import ConflictException, NotFoundException
 from app.core.permissions import Permission, RoleName
 from app.core.security import hash_password
 from app.models import User, Role
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 router = APIRouter()
 
@@ -58,8 +58,7 @@ class UserResponse(BaseModel):
     last_login: Optional[str] = None
     created_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserListResponse(BaseModel):

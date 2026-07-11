@@ -17,7 +17,7 @@ async def test_login_invalid_credentials(client):
     """POST /api/auth/login with wrong credentials returns 401."""
     resp = await client.post(
         "/api/auth/login",
-        data={"username": "nonexistent@test.com", "password": "wrong"},
+        json={"email": "nonexistent@test.com", "password": "wrong123"},
     )
     # Should fail with 401 (or 500 if DB is not connected — acceptable for unit tests)
     assert resp.status_code in [401, 500]

@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_permission
@@ -62,8 +62,7 @@ class DepotResponse(BaseModel):
     user_count: int = 0
     created_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Endpoints ────────────────────────────────────────────────────────────

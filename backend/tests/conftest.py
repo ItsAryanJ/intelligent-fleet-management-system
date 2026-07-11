@@ -15,7 +15,7 @@ os.environ.setdefault("APP_ENV", "testing")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-ci-only")
 os.environ.setdefault(
     "DATABASE_URL",
-    "postgresql+asyncpg://test:test@localhost:5432/fleet_test",
+    "postgresql+asyncpg://ncrtc_admin:ncrtc_secure_password_2024@localhost:5432/ncrtc_fleet",
 )
 
 
