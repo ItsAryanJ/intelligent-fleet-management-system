@@ -2,7 +2,6 @@
 Test: Utilities — haversine distance, sanitize functions.
 """
 
-import pytest
 from app.core.utils import haversine_km
 
 

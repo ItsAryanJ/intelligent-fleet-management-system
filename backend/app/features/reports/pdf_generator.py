@@ -4,19 +4,15 @@ Supports fleet, incident, driver, executive, depot, and utilization reports.
 """
 
 import io
-from datetime import datetime, timezone, date, timedelta
-from typing import Optional
-from uuid import UUID
+from datetime import datetime, date
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch, cm
 from reportlab.platypus import (
     SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer,
-    PageBreak, HRFlowable,
 )
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER
 
 
 # ── Brand Colors ─────────────────────────────────────────────────────────

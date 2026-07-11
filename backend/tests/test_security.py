@@ -2,7 +2,6 @@
 Test: Security Module — JTI denylist, token verification, SECRET_KEY guard.
 """
 
-import pytest
 from app.core.security import (
     deny_token,
     is_token_denied,

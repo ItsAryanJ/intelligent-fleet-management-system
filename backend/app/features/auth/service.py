@@ -3,7 +3,6 @@ Authentication service — login, token management, password operations.
 """
 
 from datetime import datetime, timezone
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import select
@@ -24,7 +23,7 @@ from app.core.security import (
     verify_refresh_token,
 )
 from app.features.auth.schemas import TokenResponse, UserBrief, UserProfileResponse
-from app.models import User, Role, RolePermission, PermissionModel
+from app.models import User
 
 
 class AuthService:

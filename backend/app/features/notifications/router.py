@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
 
 from app.core.security import verify_access_token
 from app.core.database import get_db

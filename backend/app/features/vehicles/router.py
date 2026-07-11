@@ -4,19 +4,18 @@ Vehicles feature — CRUD, status tracking, health monitoring.
 
 from typing import Annotated, Optional
 from uuid import UUID
-from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_permission, depot_scope_filter
 from app.core.exceptions import ConflictException, NotFoundException
 from app.core.permissions import Permission, RoleName
-from app.models import Vehicle, VehicleHealth, VehicleStatus, VehicleType, Duty, DutyStatus
+from app.models import Vehicle, VehicleHealth
 
 router = APIRouter()
 

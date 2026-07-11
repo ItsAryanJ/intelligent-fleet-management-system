@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import AsyncGenerator
 
-from sqlalchemy import Column, DateTime, String, Boolean, event, inspect
+from sqlalchemy import DateTime, String, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.asyncio import (
     AsyncSession,

@@ -4,10 +4,10 @@ Duties feature — Scheduling, roster management, conflict detection.
 
 from typing import Annotated, Optional
 from uuid import UUID
-from datetime import date, time, datetime, timezone, timedelta
+from datetime import date, time, datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select, and_
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
@@ -16,7 +16,7 @@ from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_permission, get_current_user
 from app.core.exceptions import BadRequestException, ConflictException, ForbiddenException, NotFoundException
 from app.core.permissions import Permission, RoleName
-from app.models import Duty, DutyStatus, User, Vehicle, Route
+from app.models import Duty, DutyStatus, User, Vehicle
 
 router = APIRouter()
 

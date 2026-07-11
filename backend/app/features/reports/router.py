@@ -7,7 +7,6 @@ from uuid import UUID
 from datetime import datetime, timezone, date
 import csv
 import io
-import json
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
@@ -19,8 +18,7 @@ from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_permission
 from app.core.permissions import Permission, RoleName
 from app.models import (
-    Report, ReportType, ReportFormat,
-    Vehicle, Incident, Duty, User, Depot,
+    Report, Vehicle, Incident, User, Depot,
 )
 from app.core.exceptions import ForbiddenException
 

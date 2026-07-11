@@ -15,7 +15,7 @@ from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_permission, get_current_user
 from app.core.exceptions import NotFoundException
 from app.core.permissions import Permission
-from app.models import Notice, NoticeRead, NoticePriority, NoticeTargetType
+from app.models import Notice, NoticeRead
 
 router = APIRouter()
 

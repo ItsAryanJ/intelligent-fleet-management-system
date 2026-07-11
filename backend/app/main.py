@@ -34,7 +34,7 @@ SLA_SWEEP_INTERVAL_SECONDS = 60
 async def _sla_sweeper_loop():
     """Background task: every 60s, mark any open incident past its sla_deadline as breached."""
     from datetime import datetime, timezone
-    from sqlalchemy import select, update
+    from sqlalchemy import update
     from app.core.database import async_session_factory
     from app.models import Incident
 

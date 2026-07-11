@@ -4,24 +4,23 @@ and route deviation. Generates incidents, notifications, and audit entries.
 """
 
 from app.core.utils import haversine_km
-from typing import Annotated, Optional
+from typing import Annotated
 from uuid import UUID
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, and_
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 
 from app.core.database import get_db
-from app.core.dependencies import CurrentUser, require_permission, get_current_user
+from app.core.dependencies import CurrentUser, require_permission
 from app.core.permissions import Permission, RoleName
 from app.core.exceptions import NotFoundException
 from app.models import (
-    Vehicle, Depot, GPSPing, Incident, Notification, AuditLog,
-    IncidentType, IncidentSeverity, IncidentStatus, NotificationType,
-    Route, Stop,
+    Vehicle, Depot, Incident, AuditLog,
+    IncidentType, IncidentSeverity, IncidentStatus, Route,
 )
 
 router = APIRouter()

@@ -2,7 +2,6 @@
 WebSocket connection manager for real-time GPS streaming.
 """
 
-import json
 from typing import Any
 
 from fastapi import WebSocket

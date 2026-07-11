@@ -5,7 +5,6 @@ Organized as a single models module for Phase 2, with all 20+ tables.
 
 import uuid
 from datetime import datetime, timezone, date, time
-from typing import Optional
 
 from geoalchemy2 import Geometry
 from sqlalchemy import (
@@ -22,7 +21,6 @@ from sqlalchemy import (
     Text,
     Time,
     UniqueConstraint,
-    JSON,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship

@@ -17,7 +17,7 @@ from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_permission, get_current_user
 from app.core.exceptions import BadRequestException, NotFoundException
 from app.core.permissions import Permission, RoleName
-from app.models import Incident, IncidentEvent, IncidentStatus, IncidentSeverity, IncidentType, User
+from app.models import Incident, IncidentEvent, IncidentStatus, User
 
 router = APIRouter()
 
@@ -294,7 +294,7 @@ async def panic_button(
         incident_type="SECURITY",
         severity="P1",
         title="🚨 PANIC ALERT — Emergency reported",
-        description=f"Panic button pressed by user. Immediate attention required.",
+        description="Panic button pressed by user. Immediate attention required.",
         latitude=latitude,
         longitude=longitude,
         reported_by=current_user.id,
@@ -398,7 +398,7 @@ async def assign_incident(
     event = IncidentEvent(
         incident_id=incident.id,
         event_type="assigned",
-        description=f"Incident assigned",
+        description="Incident assigned",
         created_by=current_user.id,
     )
     db.add(event)

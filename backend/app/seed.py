@@ -7,7 +7,6 @@ Re-generate GPS only: python -m app.seed --reseed-gps
 import asyncio
 import random
 import sys
-import uuid
 import math
 from datetime import datetime, timezone, timedelta, date, time
 
@@ -19,8 +18,7 @@ from app.core.config import get_settings
 from app.core.security import hash_password
 from app.models import (
     Base, Depot, Role, User, Vehicle, VehicleHealth, Route, Stop, RouteStop, Duty,
-    Incident, IncidentEvent, Notice, GPSPing, Notification, LeaveRequest, Report, AuditLog,
-    VehicleType, VehicleStatus, IncidentType, IncidentSeverity, IncidentStatus,
+    Incident, IncidentEvent, Notice, GPSPing, Notification, LeaveRequest, Report, VehicleType, VehicleStatus, IncidentType, IncidentSeverity, IncidentStatus,
     DutyStatus, ShiftType, NotificationType, LeaveStatus, ReportType, ReportFormat,
     NoticePriority, NoticeTargetType, StopType, MaintenanceStatus,
 )
@@ -664,7 +662,7 @@ async def seed_database():
             )
             db.add(lr)
         await db.flush()
-        print(f"   ✅ 30 leave requests created")
+        print("   ✅ 30 leave requests created")
 
         # ── 12. Reports ──────────────────────────────────────────────
         print("📊 Creating report history...")
@@ -678,7 +676,7 @@ async def seed_database():
             )
             db.add(r)
         await db.flush()
-        print(f"   ✅ 10 reports created")
+        print("   ✅ 10 reports created")
 
         # ── 13. Notifications ────────────────────────────────────────
         print("🔔 Creating notifications...")
@@ -711,8 +709,8 @@ async def seed_database():
         print(f"   📡 {ping_count:,} GPS Pings")
         print(f"   ⚠️  {len(incidents)} Incidents")
         print(f"   📢 {len(NOTICE_TITLES)} Notices")
-        print(f"   🏖️  30 Leave Requests")
-        print(f"   📊 10 Reports")
+        print("   🏖️  30 Leave Requests")
+        print("   📊 10 Reports")
         print(f"   🔔 {notification_count} Notifications")
         print()
         print("   🔑 Login: admin@ncrtc.in / pass@123")
@@ -757,7 +755,7 @@ async def reseed_gps_data():
 
     async with async_session() as db:
         # ── Step 1: Delete all existing GPS pings ─────────────────────
-        from sqlalchemy import delete, text
+        from sqlalchemy import text
         result = await db.execute(text("DELETE FROM gps_pings"))
         deleted = result.rowcount
         print(f"[DELETE] Removed {deleted:,} old GPS pings")

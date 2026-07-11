@@ -5,13 +5,13 @@ Depots feature — CRUD with geofence support.
 from typing import Annotated, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, Field
 
 from app.core.database import get_db
-from app.core.dependencies import CurrentUser, get_current_user, require_permission
+from app.core.dependencies import CurrentUser, require_permission
 from app.core.exceptions import ConflictException, NotFoundException, ForbiddenException
 from app.core.permissions import Permission, RoleName
 from app.models import Depot

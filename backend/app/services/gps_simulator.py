@@ -25,15 +25,14 @@ from datetime import datetime, timezone, timedelta
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import func, select, update, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import selectinload
 
 from app.core.config import get_settings
 from app.core.database import async_session_factory
 from app.core.websocket import gps_manager
 from app.models import (
-    Vehicle, VehicleHealth, VehicleStatus, Route, RouteStop, Stop, Duty, GPSPing,
+    Vehicle, VehicleHealth, VehicleStatus, Route, RouteStop, Duty, GPSPing,
 )
 
 logger = logging.getLogger("gps_simulator")

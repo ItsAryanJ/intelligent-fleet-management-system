@@ -3,7 +3,6 @@ AI Copilot feature — Role-aware assistant with tool calling (demo mode).
 """
 
 from typing import Annotated, Optional
-from uuid import UUID
 from datetime import datetime, timezone, date
 
 from fastapi import APIRouter, Depends
@@ -16,8 +15,8 @@ from pydantic import BaseModel
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, get_current_user
 from app.models import (
-    Duty, Incident, Vehicle, User, Notice, Route, AuditLog,
-    IncidentStatus, VehicleStatus, DutyStatus
+    Duty, Incident, Vehicle, User, AuditLog,
+    IncidentStatus, VehicleStatus
 )
 from app.core.permissions import RoleName
 

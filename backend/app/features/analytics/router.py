@@ -2,22 +2,20 @@
 Analytics feature — Executive dashboards, KPIs, charts.
 """
 
-from typing import Annotated, Optional
+from typing import Annotated
 from uuid import UUID
 from datetime import datetime, timezone, timedelta, date
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select, case
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, require_permission
 from app.core.permissions import Permission, RoleName
 from app.models import (
-    Vehicle, VehicleStatus, VehicleHealth,
-    Incident, IncidentStatus, IncidentSeverity,
-    Duty, DutyStatus, User, Depot, Route,
-    GPSPing, Notification, AuditLog,
+    Vehicle, VehicleStatus,
+    Incident, Duty, User, Depot, Route,
 )
 from app.core.exceptions import ForbiddenException
 

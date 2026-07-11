@@ -6,7 +6,6 @@ Supports incident photos, notice attachments, user avatars, and report files.
 import os
 import uuid
 import mimetypes
-from pathlib import Path
 from datetime import datetime, timezone
 from typing import Annotated, Optional
 
