@@ -50,6 +50,9 @@ jobs:
       - name: Run database migrations
         run: alembic upgrade head
 
+      - name: Seed test database
+        run: python -m app.seed
+
       - name: Lint with ruff
         run: ruff check app/ --select E,W,F --ignore E501,E711,E712,F841
 
