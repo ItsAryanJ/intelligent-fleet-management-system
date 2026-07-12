@@ -47,9 +47,6 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run database migrations
-        run: alembic upgrade head
-
       - name: Seed test database
         run: python -m app.seed
 
