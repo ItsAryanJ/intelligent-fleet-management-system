@@ -6,7 +6,7 @@ from typing import Annotated, Optional
 from uuid import UUID
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status, WebSocket, WebSocketDisconnect
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,6 +14,7 @@ from app.core.security import verify_access_token
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, get_current_user
 from app.models import Notification
+from app.core.websocket import notification_manager
 
 router = APIRouter()
 
@@ -127,8 +128,7 @@ async def unread_count(
 
 
 # ── WebSocket real-time notifications ────────────────────────────────────
-from fastapi import WebSocket, WebSocketDisconnect
-from app.core.websocket import notification_manager
+
 
 
 @router.websocket("/ws")
@@ -167,7 +167,7 @@ async def websocket_notifications(websocket: WebSocket):
         websocket,
         metadata={"user_id": user_id},
     )
-    
+
     try:
         while True:
             # Keep alive — receive heartbeat pings from client

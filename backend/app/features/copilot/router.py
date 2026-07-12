@@ -2,6 +2,7 @@
 AI Copilot feature — Role-aware assistant with tool calling (demo mode).
 """
 
+
 from typing import Annotated, Optional
 from datetime import datetime, timezone, date
 
@@ -12,12 +13,15 @@ from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 
 
+from sqlalchemy import desc
+from app.core.exceptions import ForbiddenException
 from app.core.database import get_db
 from app.core.dependencies import CurrentUser, get_current_user
 from app.models import (
     Duty, Incident, Vehicle, User, AuditLog,
     IncidentStatus, VehicleStatus
 )
+# pyright: ignore [reportMissingImports]
 from app.core.permissions import RoleName
 
 router = APIRouter()
@@ -241,7 +245,7 @@ async def _handle_incident_query(db: AsyncSession, user: CurrentUser, message: s
             ]),
         )
     )
-    
+
     if user.role in [
         RoleName.DRIVER.value,
         RoleName.CONDUCTOR.value,
@@ -389,7 +393,7 @@ async def get_insights(
     today = date.today()
 
     # Check for SLA breaches
-    
+
     incident_filter = [
         Incident.is_deleted == False,
         Incident.sla_breached == True,
@@ -490,7 +494,7 @@ async def get_insights(
             })
 
     # Check unassigned duties
-   
+
     unassigned = (
         await db.execute(
             select(func.count()).select_from(
@@ -530,7 +534,7 @@ async def get_copilot_history(
     page_size: int = 20,
 ):
     """Get copilot conversation history for the current user."""
-    from sqlalchemy import desc
+
     stmt = (
         select(AuditLog)
         .where(AuditLog.user_id == current_user.id, AuditLog.action == "COPILOT_QUERY")
@@ -549,12 +553,12 @@ async def get_copilot_history(
     return {
         "items": [
             {
-                "id": str(l.id),
-                "query": l.details.get("query") if l.details else "",
-                "role": l.details.get("role") if l.details else "",
-                "timestamp": l.created_at.isoformat(),
+                "id": str(log.id),
+                "query": log.details.get("query") if log.details else "",
+                "role": log.details.get("role") if log.details else "",
+                "timestamp": log.created_at.isoformat(),
             }
-            for l in logs
+            for log in logs
         ],
         "total": total,
         "page": page,
@@ -568,7 +572,6 @@ async def get_copilot_analytics(
 ):
     """Get copilot usage analytics (admin/executive only)."""
     if current_user.role not in ["ADMIN", "EXECUTIVE"]:
-        from app.core.exceptions import ForbiddenException
         raise ForbiddenException("Only ADMIN and EXECUTIVE roles can access copilot analytics")
 
     # Total queries

@@ -133,7 +133,7 @@ async def get_vehicle(
     )
     result = await db.execute(stmt)
     vehicle = result.scalar_one_or_none()
-    
+
     if not vehicle:
         raise NotFoundException("Vehicle", vehicle_id)
 
@@ -142,7 +142,7 @@ async def get_vehicle(
         and vehicle.depot_id != current_user.depot_id
     ):
         raise NotFoundException("Vehicle", vehicle_id)
-    
+
     return _vehicle_to_response(vehicle)
 
 
@@ -158,7 +158,7 @@ async def create_vehicle(
     )
     if existing.scalar_one_or_none():
         raise ConflictException("Vehicle with this registration number already exists")
-    
+
     if (
         current_user.role == RoleName.DEPOT_MANAGER.value
         and body.depot_id != current_user.depot_id
@@ -166,7 +166,7 @@ async def create_vehicle(
         raise ConflictException(
             "Cannot create vehicles for another depot"
         )
-    
+
     vehicle = Vehicle(
         registration_no=body.registration_no,
         vehicle_type=body.vehicle_type,
@@ -213,8 +213,8 @@ async def update_vehicle(
         current_user.role == RoleName.DEPOT_MANAGER.value
         and vehicle.depot_id != current_user.depot_id
     ):
-        raise NotFoundException("Vehicle", vehicle_id) 
-    
+        raise NotFoundException("Vehicle", vehicle_id)
+
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(vehicle, field, value)
     vehicle.updated_by = str(current_user.id)

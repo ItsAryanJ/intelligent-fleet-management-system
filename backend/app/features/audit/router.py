@@ -48,16 +48,16 @@ async def list_audit_logs(
     return {
         "items": [
             {
-                "id": str(l.id),
-                "user_id": str(l.user_id) if l.user_id else None,
-                "action": l.action,
-                "resource_type": l.resource_type,
-                "resource_id": l.resource_id,
-                "details": l.details,
-                "ip_address": l.ip_address,
-                "created_at": l.created_at.isoformat(),
+                "id": str(log.id),
+                "user_id": str(log.user_id) if log.user_id else None,
+                "action": log.action,
+                "resource_type": log.resource_type,
+                "resource_id": log.resource_id,
+                "details": log.details,
+                "ip_address": log.ip_address,
+                "created_at": log.created_at.isoformat(),
             }
-            for l in logs
+            for log in logs
         ],
         "total": total,
         "page": page,
@@ -88,13 +88,13 @@ async def activity_timeline(
         "total": len(logs),
         "events": [
             {
-                "id": str(l.id),
-                "action": l.action,
-                "resource_type": l.resource_type,
-                "resource_id": l.resource_id,
-                "details": l.details,
-                "created_at": l.created_at.isoformat(),
+                "id": str(log.id),
+                "action": log.action,
+                "resource_type": log.resource_type,
+                "resource_id": log.resource_id,
+                "details": log.details,
+                "created_at": log.created_at.isoformat(),
             }
-            for l in logs
+            for log in logs
         ],
     }

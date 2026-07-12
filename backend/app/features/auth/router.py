@@ -66,14 +66,14 @@ async def refresh_token(
 async def logout(request: Request):
     """Logout — revoke the current access token server-side."""
     auth_header = request.headers.get("Authorization", "")
-    
+
     # Trigger 401 if the header is missing or malformed
     if not auth_header.startswith("Bearer "):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, 
+            status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing or invalid authentication token"
         )
-        
+
     token = auth_header[7:]
     try:
         payload = decode_token(token)
@@ -81,10 +81,10 @@ async def logout(request: Request):
         if jti:
             deny_token(jti)
     except (ValueError, Exception):
-        # Optional: You can also raise a 401 here if the token is invalid, 
+        # Optional: You can also raise a 401 here if the token is invalid,
         # or leave the 'pass' if you want to allow logging out with an expired token.
-        pass 
-        
+        pass
+
     return {"message": "Logged out successfully"}
 
 @router.get("/me", response_model=UserProfileResponse)

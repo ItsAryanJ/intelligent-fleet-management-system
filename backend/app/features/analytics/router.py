@@ -187,7 +187,7 @@ async def incident_analytics(
                 User.depot_id == current_user.depot_id
             )
         )
-        
+
     # By type
     type_result = await db.execute(
         select(

@@ -160,7 +160,7 @@ async def get_user(
 
     if not user:
         raise NotFoundException("User", user_id)
-    
+
     if (
         current_user.role == RoleName.DEPOT_MANAGER.value
         and user.depot_id != current_user.depot_id
@@ -250,16 +250,16 @@ async def update_user(
     )
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
-    
+
     if not user:
         raise NotFoundException("User", user_id)
-    
+
     if (
         current_user.role == RoleName.DEPOT_MANAGER.value
         and user.depot_id != current_user.depot_id
     ):
         raise NotFoundException("User", user_id)
-    
+
     update_data = body.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(user, field, value)
@@ -296,10 +296,10 @@ async def delete_user(
     stmt = select(User).where(User.id == user_id, User.is_deleted == False)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
-    
+
     if not user:
         raise NotFoundException("User", user_id)
-    
+
     if (
         current_user.role == RoleName.DEPOT_MANAGER.value
         and user.depot_id != current_user.depot_id

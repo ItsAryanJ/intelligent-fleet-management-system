@@ -123,7 +123,7 @@ async def notice_feed(
     feed = []
 
     for notice in notices:
-        
+
         read_stmt = select(NoticeRead).where(
             NoticeRead.notice_id == notice.id,
             NoticeRead.user_id == current_user.id,
@@ -157,7 +157,7 @@ async def get_notice(
 
     if not notice:
         raise NotFoundException("Notice", notice_id)
-    
+
     if not _can_view_notice(notice, current_user):
         raise NotFoundException("Notice", notice_id)
     if (
@@ -218,7 +218,7 @@ async def publish_notice(
 
     if not notice:
         raise NotFoundException("Notice", notice_id)
-    
+
     notice.is_published = True
     notice.published_at = datetime.now(timezone.utc)
     notice.published_by = current_user.id
@@ -241,7 +241,7 @@ async def mark_read(
 
     if not _can_view_notice(notice, current_user):
         raise NotFoundException("Notice", notice_id)
-    
+
     if (
         not notice.is_published
         and not current_user.has_permission(
@@ -249,7 +249,7 @@ async def mark_read(
         )
     ):
         raise NotFoundException("Notice", notice_id)
-    
+
     existing = await db.execute(
         select(NoticeRead).where(
             NoticeRead.notice_id == notice_id,
@@ -260,7 +260,7 @@ async def mark_read(
         read = NoticeRead(notice_id=notice_id, user_id=current_user.id)
         db.add(read)
         await db.flush()
-    
+
 
     return {"message": "Marked as read"}
 
@@ -286,7 +286,7 @@ async def acknowledge_notice(
 
     if not _can_view_notice(notice, current_user):
         raise NotFoundException("Notice", notice_id)
-    
+
     if (
         not notice.is_published
         and not current_user.has_permission(
@@ -294,7 +294,7 @@ async def acknowledge_notice(
         )
     ):
         raise NotFoundException("Notice", notice_id)
-    
+
     if read:
         read.acknowledged_at = datetime.now(timezone.utc)
     else:

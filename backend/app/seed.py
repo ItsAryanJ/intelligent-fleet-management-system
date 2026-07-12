@@ -726,7 +726,6 @@ async def seed_database():
 
 async def reseed_gps_data():
     """Clear all GPS pings and regenerate clean route-following trajectories.
-    
     This can be run independently of the main seed to fix GPS data issues
     without dropping and re-creating the entire database.
     """

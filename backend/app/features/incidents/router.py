@@ -219,7 +219,7 @@ async def get_incident(
     ]:
         if incident.reported_by != current_user.id:
             raise NotFoundException("Incident", incident_id)
-        
+
     data = _incident_to_dict(incident)
     data["events"] = [
         {
@@ -336,7 +336,7 @@ async def acknowledge_incident(
 
     if not incident:
         raise NotFoundException("Incident", incident_id)
-    
+
     _validate_transition(incident.status, "ACKNOWLEDGED")
 
     now = datetime.now(timezone.utc)
@@ -468,14 +468,14 @@ async def resolve_incident(
 
     if not incident:
         raise NotFoundException("Incident", incident_id)
-    
+
     if (
         current_user.role == RoleName.DEPOT_MANAGER.value
         and incident.reported_by_user
         and incident.reported_by_user.depot_id != current_user.depot_id
     ):
         raise NotFoundException("Incident", incident_id)
-    
+
     _validate_transition(incident.status, "RESOLVED")
 
     now = datetime.now(timezone.utc)
@@ -543,7 +543,7 @@ async def add_event(
     current_user: Annotated[CurrentUser, Depends(require_permission(Permission.INCIDENT_VIEW))],
 ):
     """Add a timeline event to an incident."""
-    
+
 
     stmt = (
         select(Incident)
@@ -572,7 +572,7 @@ async def add_event(
     ]:
         if incident.reported_by != current_user.id:
             raise NotFoundException("Incident", incident_id)
-        
+
     event = IncidentEvent(
         incident_id=incident_id,
         event_type=body.event_type,

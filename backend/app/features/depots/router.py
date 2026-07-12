@@ -128,7 +128,7 @@ async def get_depot(
 
     if not depot:
         raise NotFoundException("Depot", depot_id)
-    
+
     return DepotResponse(
         id=depot.id,
         name=depot.name,
@@ -158,7 +158,7 @@ async def create_depot(
     existing = await db.execute(select(Depot).where(Depot.code == body.code))
     if existing.scalar_one_or_none():
         raise ConflictException("Depot with this code already exists")
-    
+
     if current_user.role == RoleName.DEPOT_MANAGER.value:
         raise ForbiddenException(
             "Depot Managers cannot create depots"
@@ -213,7 +213,7 @@ async def update_depot(
 
     if not depot:
         raise NotFoundException("Depot", depot_id)
-    
+
     if (
         current_user.role == RoleName.DEPOT_MANAGER.value
         and depot.id != current_user.depot_id

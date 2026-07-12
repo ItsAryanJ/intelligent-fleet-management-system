@@ -90,7 +90,7 @@ async def get_history(
         and vehicle.depot_id != current_user.depot_id
     ):
         raise NotFoundException("Vehicle", vehicle_id)
-    
+
     end = end_date or start_date
     stmt = (
         select(GPSPing)
@@ -170,7 +170,7 @@ async def get_trip_analytics(
         and vehicle.depot_id != current_user.depot_id
     ):
         raise NotFoundException("Vehicle", vehicle_id)
-    
+
     stmt = (
         select(GPSPing)
         .where(

@@ -43,7 +43,7 @@ async def list_reports(
     """List generated reports."""
     stmt = select(Report)
 
-    if current_user.role == RoleName.DEPOT_MANAGER.value:   
+    if current_user.role == RoleName.DEPOT_MANAGER.value:
         stmt = stmt.where(
             Report.parameters["depot_id"].astext
             == str(current_user.depot_id)
@@ -125,7 +125,7 @@ async def generate_report(
         report_type=body.report_type,
         report_format=body.report_format,
         title=title,
-        parameters={"start_date": str(body.start_date), 
+        parameters={"start_date": str(body.start_date),
                     "end_date": str(body.end_date),
                     "depot_id": str(body.depot_id) if body.depot_id else None,},
         generated_by=current_user.id,

@@ -248,15 +248,15 @@ async def create_duty(
     if current_user.role == RoleName.DEPOT_MANAGER.value:
         driver = await db.get(User, body.driver_id)
         vehicle = await db.get(Vehicle, body.vehicle_id)
-        if not driver: 
-            raise NotFoundException("Driver", body.driver_id) 
-        if not vehicle: 
-            raise NotFoundException("Vehicle", body.vehicle_id) 
-        if driver.depot_id != current_user.depot_id: 
-            raise ForbiddenException("Cannot assign duties to drivers from another depot") 
-        if vehicle.depot_id != current_user.depot_id: 
+        if not driver:
+            raise NotFoundException("Driver", body.driver_id)
+        if not vehicle:
+            raise NotFoundException("Vehicle", body.vehicle_id)
+        if driver.depot_id != current_user.depot_id:
+            raise ForbiddenException("Cannot assign duties to drivers from another depot")
+        if vehicle.depot_id != current_user.depot_id:
             raise ForbiddenException("Cannot assign vehicles from another depot")
-    
+
     # Prevent double-booking
     await _assert_no_conflict(db, body.date, body.shift, body.driver_id, body.vehicle_id)
 

@@ -11,10 +11,15 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
+# pyrefly: ignore [missing-import]
 from app.core.exceptions import NotFoundException
+# pyrefly: ignore [missing-import]
 from app.core.database import get_db
+# pyrefly: ignore [missing-import]
 from app.core.dependencies import CurrentUser, get_current_user, require_permission
+# pyrefly: ignore [missing-import]
 from app.core.permissions import Permission,RoleName
+# pyrefly: ignore [missing-import]
 from app.models import LeaveRequest, LeaveStatus, AuditLog, Notification, NotificationType, User
 
 router = APIRouter()
@@ -65,19 +70,19 @@ async def list_leave_requests(
     return {
         "items": [
             {
-                "id": str(l.id),
-                "user_id": str(l.user_id),
-                "start_date": l.start_date.isoformat(),
-                "end_date": l.end_date.isoformat(),
-                "reason": l.reason,
-                "leave_type": l.leave_type,
-                "status": l.status if isinstance(l.status, str) else l.status.value,
-                "approved_by": str(l.approved_by) if l.approved_by else None,
-                "approved_at": l.approved_at.isoformat() if l.approved_at else None,
-                "rejection_reason": l.rejection_reason,
-                "created_at": l.created_at.isoformat(),
+                "id": str(leave.id),
+                "user_id": str(leave.user_id),
+                "start_date": leave.start_date.isoformat(),
+                "end_date": leave.end_date.isoformat(),
+                "reason": leave.reason,
+                "leave_type": leave.leave_type,
+                "status": leave.status if isinstance(leave.status, str) else leave.status.value,
+                "approved_by": str(leave.approved_by) if leave.approved_by else None,
+                "approved_at": leave.approved_at.isoformat() if leave.approved_at else None,
+                "rejection_reason": leave.rejection_reason,
+                "created_at": leave.created_at.isoformat(),
             }
-            for l in leaves
+            for leave in leaves
         ],
         "total": total,
         "page": page,
@@ -127,7 +132,7 @@ async def approve_leave(
     leave = leave.scalar_one_or_none()
     if not leave:
         raise NotFoundException("LeaveRequest", leave_id)
-    
+
     if current_user.role == RoleName.DEPOT_MANAGER.value:
         user = await db.get(User, leave.user_id)
         if (
@@ -176,9 +181,9 @@ async def reject_leave(
         select(LeaveRequest).where(LeaveRequest.id == leave_id, LeaveRequest.is_deleted == False)
     )
     leave = leave.scalar_one_or_none()
-    if not leave:     
+    if not leave:
         raise NotFoundException("LeaveRequest", leave_id)
-    
+
     if current_user.role == RoleName.DEPOT_MANAGER.value:
         user = await db.get(User, leave.user_id)
         if (
