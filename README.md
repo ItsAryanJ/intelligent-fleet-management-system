@@ -124,7 +124,7 @@ Enterprise-grade fleet management system for the **National Capital Region Trans
 
 ```bash
 # Clone and start all services
-git clone <repository-url>
+git clone https://github.com/ItsAryanJ/intelligent-fleet-management-system.git
 cd intelligent-fleet-management-system
 docker compose up --build -d
 ```
